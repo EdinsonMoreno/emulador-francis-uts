@@ -22,7 +22,11 @@ env/
 .DS_Store
 Thumbs.db
 
-# Editor
+# IDE
 .idea/
 .vscode/
 *.swp
+
+# Client-side builds (Electron)
+frontend/dist/
+frontend/node_modules/
