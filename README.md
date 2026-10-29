@@ -1,73 +1,68 @@
-# React + TypeScript + Vite
+# Emulador Francis UTS
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Simulador en tiempo real de la turbina Francis para el laboratorio de la
+Unidades Tecnológicas de Santander (UTS), campus Barrancabermeja.
 
-Currently, two official plugins are available:
+Replica el comportamiento hidráulico, mecánico y eléctrico de una turbina
+Francis de laboratorio: caudal, velocidad, potencia, eficiencia, frecuencia
+de la red, régimen de cavitación y diagrama de colina, con control por
+distribuidor y regulador de velocidad.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+La aplicación nace de la presentación interactiva de la Turbina Francis
+(Mecánica de Fluidos, UTS). Ese proyecto aportó el modelo de física, los
+motores gráficos (2D y 3D) y los modelos 3D/Sketchfab; este repositorio
+los reúne bajo una arquitectura de simulación, con backend en Python (cálculo)
+y frontend en TypeScript/React/Vite (interfaz), conectados por WebSocket.
 
-## React Compiler
+## Estructura del repositorio
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+    Emulador Francis UTS/
+    ├── docs/
+    │   ├── documentation/   # Documentos originales (propuesta, guion, ficha técnica)
+    │   └── SDD/             # Software Design Document
+    ├── backend/             # Motor de simulación (Python: FastAPI, NumPy, SciPy)
+    ├── frontend/            # Interfaz de usuario (TypeScript, React, Vite, Three.js)
+    ├── shared/              # Contratos de mensajes (Pydantic ↔ TypeScript)
+    ├── scripts/             # Scripts de build, utilidades y validación
+    └── assets/              # Modelos 3D, gráficos, mediciones referenciales
 
-## Expanding the ESLint configuration
+## Requisitos
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+- Python 3.12+ (backend)
+- Node.js 20+ / npm 10+ (frontend)
+- GPU con WebGL2 (visualización 3D)
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## Desarrollo
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+### Backend
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+    cd backend
+    python -m venv .venv && source .venv/bin/activate
+    pip install -r requirements.txt
+    uvicorn app.main:app --reload
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### Frontend
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+    cd frontend
+    npm install
+    npm run dev
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+## Publicación (Electron)
+
+    npm run electron      # build + electron
+    npm run dist:win      # instalador Windows portable
+
+## División de trabajo
+
+- **Diseño de la arquitectura:** Esteban Zuñiga
+- **Física y validación:** Moncada Murcia
+
+## Licitud
+
+Este trabajo de grado está desarrollado por Eduard Esteban Zuñiga Peláez y
+Jesús Mauricio Moncada Murcia (Tecnología en Gestión de Recursos Energéticos,
+UTS campus Barrancabermeja). Este repositorio es el respaldo del emulador.
+
+## Licencia
+
+Licencia UTS / trabajo de grado.
