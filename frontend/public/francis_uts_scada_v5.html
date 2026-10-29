@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Francis UTS · SCADA Master Workspace Ultimate v5.0</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/uplot@1.6.24/dist/uPlot.min.css">
+<script src="https://cdn.jsdelivr.net/npm/uplot@1.6.24/dist/uPlot.iife.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+<script>
+tailwind.config = {
+  darkMode: 'class',
+  theme: {
+    extend: {
+      fontFamily: { sans: ['Inter','sans-serif'], mono: ['JetBrains Mono','monospace'] },
+      colors: {
+        brand: { 50:'#f0f9ff',100:'#e0f2fe',200:'#bae6fd',300:'#7dd3fc',400:'#38bdf8',500:'#0ea5e9',600:'#0284c7',700:'#0369a1',800:'#075985',900:'#0c4a6e' }
+      }
+    }
+  }
+};
+</script>
+
+<style>
+  html,body{height:100%;width:100%;overflow:hidden;margin:0;padding:0}
+  body{font-family:'Inter',sans-serif;-webkit-font-smoothing:antialiased;user-select:none;background:#0f172a;color:#e2e8f0}
+  ::-webkit-scrollbar{width:6px;height:6px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:#475569;border-radius:4px}
+  ::-webkit-scrollbar-thumb:hover{background:#64748b}
+
+  @keyframes dashFlow{to{stroke-dashoffset:-120}}
+  .flow-active{stroke-dasharray:10 8;animation:dashFlow 1.2s linear infinite}
+  @keyframes pulse-dot{0%,100%{opacity:1;box-shadow:0 0 8px currentColor}50%{opacity:.4;box-shadow:0 0 16px currentColor}}
+  .pulse-dot{animation:pulse-dot 1.8s infinite ease-in-out}
+  @keyframes banner-pulse{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.5)}50%{box-shadow:0 0 0 10px rgba(239,68,68,0)}}
+  .alarm-banner{animation:banner-pulse 1.4s infinite}
+  @keyframes toast-in{from{transform:translateX(120%);opacity:0}to{transform:translateX(0);opacity:1}}
+  .toast{animation:toast-in .25s ease-out}
+  @keyframes glow-pulse{0%,100%{box-shadow:0 0 8px rgba(255,255,255,.2)}50%{box-shadow:0 0 16px rgba(255,255,255,.4)}}
+  .glow-item{animation:glow-pulse 2s infinite ease-in-out}
+  input[type=range]{-webkit-appearance:none;appearance:none;height:6px;border-radius:999px;outline:none;background:#334155}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:#0284c7;border:2px solid #fff;box-shadow:0 0 10px rgba(14,165,233,.6);cursor:pointer;transition:transform .12s}
+  input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.2);background:#38bdf8}
+  .nav-item.active{background:linear-gradient(90deg,rgba(14,165,233,.25),rgba(14,165,233,.03));border-left:2px solid #38bdf8;color:#fff}
+  .glass{backdrop-filter:blur(14px);background:rgba(15,23,42,.78);border:1px solid rgba(255,255,255,.08)}
+  .tabular{font-variant-numeric:tabular-nums}
+  .btn-primary{background:linear-gradient(135deg,#0284c7,#0369a1);border:1px solid #38bdf8;color:#fff}
+  .btn-primary:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(2,132,199,.3)}
+  .btn-danger{border:1px solid #b91c1c;color:#fca5f2}
+  .btn-danger:hover{background:#dc2626;transform:translateY(-1px);box-shadow:0 4px 12px rgba(220,38,38,.3)}
+  .btn-warning{border:1px solid #f59e0b;color:#fef3c7}
+  .btn-warning:hover{background:#f59e0b;color:#fff;transform:translateY(-1px);box-shadow:0 4px 12px rgba(245,158,11,.3)}
+  .kpi-card{position:relative;overflow:hidden;transition:transform .15s,border-color .15s}
+  .kpi-card:hover{transform:translateY(-1px);border-color:#38bdf8}
+  .kpi-accent{position:absolute;top:0;right:0;width:80px;height:80px;border-bottom-left-radius:100%;opacity:.35;pointer-events:none}
+  .status-dot{display:inline-block;width:8px;height:8px;border-radius:50%}
+  .status-dot.green{animation:pulse-dot 1.2s infinite}
+  .status-dot.amber{animation:pulse-dot 1.2s infinite}
+  .nav-item.active-slide{animation:slideIn 0.2s ease}
+  @keyframes slideIn{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:translateX(0)}}
+  .card-hover{border:1px solid rgba(255,255,255,.08)}
+  .card-hover:hover{border-color:#38bdf8;box-shadow:0 8px 24px rgba(0,0,0,.3)}
+  .mini-chart{height:100px;position:relative}
+  .mini-chart canvas{width:100%;height:100%}
+  .system-status{display:flex;align-items:center;gap:8px}
+  .system-status .dot{width:8px;height:8px;border-radius:50%}
+  .system-status .dot.green{animation:pulse-dot 1.2s infinite}
+</style>
+</head>
+
+<body class="bg-slate-950 text-slate-100 h-screen w-screen flex flex-col overflow-hidden dark">
+<header class="h-14 bg-slate-900/95 border-b border-slate-800 px-4 flex items-center justify-between shrink-0 z-30 shadow-lg backdrop-blur-md">
+  <div class="flex items-center gap-3">
+    <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-cyan-500 via-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/20 ring-1 ring-white/20">
+      <i class="fa-solid fa-water text-white text-base"></i>
+    </div>
+    <div>
+      <div class="flex items-center gap-2">
+        <h1 class="text-sm font-extrabold tracking-tight text-white font-mono">FRANCIS-UTS MASTER SCADA</h1>
+        <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-950 text-blue-400 border border-blue-800/60 font-mono">V5.0 ULTIMATE</span>
+      </div>
+      <p class="text-[11px] text-slate-400 flex items-center gap-2">
+        <span>Turbina Hydro Francis · Lab UTS</span>
+        <span class="text-slate-600">•</span>
+        <span id="header-op-mode" class="text-emerald-400 font-semibold">Listo</span>
+      </p>
+    </div>
+  </div>
+  <div class="flex items-center gap-2.5">
+    <div id="grid-status-badge" class="hidden sm:flex items-center gap-2 bg-slate-800/80 border border-slate-700 text-slate-400 text-xs px-2.5 py-1 rounded-lg">
+      <span id="grid-led" class="w-2.5 h-2.5 rounded-full bg-slate-500"></span>
+      <span id="grid-status-txt" class="font-semibold text-[11px] tracking-wide uppercase">En Isla</span>
+    </div>
+    <button onclick="switchView('alarms')" class="relative bg-slate-800 hover:bg-slate-700/80 border border-slate-700 text-slate-300 px-2.5 py-1.5 rounded-lg text-xs transition flex items-center gap-1.5"><i class="fa-solid fa-bell text-amber-400"></i><span id="alarm-count-badge" class="bg-slate-700 text-white font-mono text-[10px] font-bold px-1.5 py-0.2 rounded-full">0</span></button>
+    <button onclick="toggleSound()" id="btn-sound" title="Sonido" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 w-8 h-8 rounded-lg transition flex items-center justify-center text-xs"><i class="fa-solid fa-volume-low text-brand-400"></i></button>
+    <button onclick="toggleTheme()" title="Tema" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 w-8 h-8 rounded-lg transition flex items-center justify-center text-xs"><i id="theme-icon" class="fa-solid fa-sun text-amber-400"></i></button>
+    <button onclick="exportCSV()" title="CSV Telemetría" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition hidden md:flex items-center gap-1.5"><i class="fa-solid fa-file-csv text-emerald-400"></i><span>CSV</span></button>
+    <button id="btn-master-trip" onclick="toggleMasterTrip()" class="bg-rose-600 hover:bg-rose-500 active:scale-95 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition shadow-md shadow-rose-950 flex items-center gap-1.5 border border-rose-400/40"><i class="fa-solid fa-triangle-exclamation"></i><span id="trip-btn-lbl" class="hidden sm:inline">DISPARO CRÍTICO</span></button>
+  </div>
+</header>
+
+<div id="critical-alarm-banner" class="hidden shrink-0 text-white px-4 py-2 flex items-center justify-between text-xs font-semibold shadow-xl z-20">
+  <div class="flex items-center gap-3"><i class="fa-solid fa-triangle-exclamation text-base animate-bounce"></i><span id="alarm-banner-text" class="font-mono tracking-wide">¡ALARMA CRÍTICA DETECTADA! Protecciones activadas.</span></div>
+  <button onclick="acknowledgeAlarms()" class="bg-white/20 hover:bg-white/30 text-white text-[11px] font-bold px-3 py-1 rounded-md transition backdrop-blur border border-white/20">RECONOCER ALARMAS</button>
+</div>
+
+<div class="flex flex-1 min-h-0 overflow-hidden">
+  <aside class="w-56 bg-slate-900/95 border-r border-slate-800 flex flex-col justify-between shrink-0 z-20 text-slate-400">
+    <nav class="p-2 space-y-0.5 overflow-y-auto">
+      <div class="px-3 pt-2 pb-1 text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono">Operación SCADA</div>
+      <button data-nav="overview" onclick="switchView('overview')" class="nav-item active-slide w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium hover:bg-slate-800/60 transition"><i class="fa-solid fa-gauge-high w-4 text-center text-cyan-400"></i>Monitor General</button>
+      <button data-nav="3d" onclick="switchView('3d')" class="nav-item active-slide w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium hover:bg-slate-800/60 transition"><i class="fa-solid fa-cube w-4 text-center text-blue-400"></i>Gemelo Digital 3D</button>
+      <button data-nav="pid" onclick="switchView('pid')" class="nav-item active-slide w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium hover:bg-slate-800/60 transition"><i class="fa-solid fa-diagram-project w-4 text-center text-indigo-400"></i>Esquema P&amp;ID ISA</button>
+      <button data-nav="hmi" onclick="switchView('hmi')" class="nav-item active-slide w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium hover:bg-slate-800/60 transition"><i class="fa-solid fa-sliders w-4 text-center text-amber-400"></i>Gobernador / HMI</button>
+      <div class="px-3 pt-4 pb-1 text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono">Análisis &amp; Ingeniería</div>
+      <button data-nav="trends" onclick="switchView('trends')" class="nav-item active-slide w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium hover:bg-slate-800/60 transition"><i class="fa-solid fa-chart-line w-4 text-center text-emerald-400"></i>Tendencias &amp; Hill</button>
+      <button data-nav="sizing" onclick="switchView('sizing')" class="nav-item active-slide w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium hover:bg-slate-800/60 transition"><i class="fa-solid fa-calculator w-4 text-center text-violet-400"></i>Triángulos Velocidad</button>
+      <button data-nav="alarms" onclick="switchView('alarms')" class="nav-item active-slide w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium hover:bg-slate-800/60 transition"><div class="flex items-center gap-3"><i class="fa-solid fa-bell w-4 text-center text-rose-400"></i>Registro Alarmas</div><span id="nav-alarm-badge" class="bg-slate-800 text-slate-400 font-mono text-[10px] px-1.5 py-0.2 rounded-full">0</span></button>
+      <div class="px-3 pt-4 pb-1 text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono">Laboratorio &amp; Prácticas</div>
+      <button data-nav="labs" onclick="switchView('labs')" class="nav-item active-slide w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium hover:bg-slate-800/60 transition"><i class="fa-solid fa-flask w-4 text-center text-teal-400"></i>Guía de Prácticas</button>
+    </nav>
+    <div class="p-3 border-t border-slate-800/80 bg-slate-950/50 text-[11px] font-mono space-y-2">
+      <div class="flex items-center justify-between"><span class="text-slate-500">Ciclo SCADA</span><span class="text-emerald-400 font-bold">30 Hz</span></div>
+      <div class="flex items-center justify-between"><span class="text-slate-500">Uptime</span><span id="uptime-clock" class="text-slate-300">00:00:00</span></div>
+      <div class="flex items-center justify-between"><span class="text-slate-500">Enlace</span><span class="inline-flex items-center gap-1.5 text-emerald-400"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500 pulse-dot"></span>Modbus/TCP</span></div>
+    </div>
+  </aside>
+
+  <main class="flex-1 bg-slate-950 overflow-y-auto p-4 space-y-4 relative">
+    <section class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+      <div class="kpi-card bg-slate-900/90 border border-slate-800 p-3 rounded-xl shadow-sm hover:border-cyan-500/50"><p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono">Velocidad Rodete</p><div class="flex items-baseline gap-1 mt-1"><span id="kpi-rpm" class="text-xl font-black font-mono text-white tabular">0.0</span><span class="text-xs text-slate-400 font-sans">RPM</span></div><div class="mt-2 w-full bg-slate-800 h-1.5 rounded-full overflow-hidden"><div id="bar-rpm" class="bg-cyan-500 h-full transition-all duration-300" style="width:0%"></div></div><span class="text-[9px] font-mono text-slate-500 mt-1 block">Ref <span id="kpi-nref">1300</span> RPM</span></div>
+      <div class="kpi-card bg-slate-900/90 border border-slate-800 p-3 rounded-xl shadow-sm hover:border-amber-500/50"><p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono">Potencia Eléctrica</p><div class="flex items-baseline gap-1 mt-1"><span id="kpi-pelec" class="text-xl font-black font-mono text-amber-400 tabular">0.00</span><span class="text-xs text-slate-400 font-sans">kW</span></div><p class="text-[10px] text-slate-400 mt-2 font-mono">Mecánica: <span id="kpi-pmech" class="text-slate-200">0.00 kW</span></p></div>
+      <div class="kpi-card bg-slate-900/90 border border-slate-800 p-3 rounded-xl shadow-sm hover:border-blue-500/50"><p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono">Caudal Descarga (Q)</p><div class="flex items-baseline gap-1 mt-1"><span id="kpi-flow" class="text-xl font-black font-mono text-blue-400 tabular">0.000</span><span class="text-xs text-slate-400 font-sans">m³/s</span></div><p class="text-[10px] text-slate-400 mt-2 font-mono">Distribuidor: <span id="kpi-gate" class="text-slate-200">0.0 %</span></p></div>
+      <div class="kpi-card bg-slate-900/90 border border-slate-800 p-3 rounded-xl shadow-sm hover:border-indigo-500/50"><p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono">Caída Neta H_net</p><div class="flex items-baseline gap-1 mt-1"><span id="kpi-head" class="text-xl font-black font-mono text-indigo-300 tabular">35.00</span><span class="text-xs text-slate-400 font-sans">m</span></div><p class="text-[10px] text-slate-400 mt-2 font-mono">Golpe Ariete: <span id="kpi-whammer" class="text-slate-200">0.00 m</span></p></div>
+      <div class="kpi-card bg-slate-900/90 border border-slate-800 p-3 rounded-xl shadow-sm hover:border-emerald-500/50"><p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono">Eficiencia Total (η)</p><div class="flex items-baseline gap-1 mt-1"><span id="kpi-eta" class="text-xl font-black font-mono text-emerald-400 tabular">0.0</span><span class="text-xs text-slate-400 font-sans">%</span></div><p class="text-[10px] text-slate-400 mt-2 font-mono">P. Hidráulica: <span id="kpi-phyd" class="text-slate-200">0.0 kW</span></p></div>
+      <div class="kpi-card bg-slate-900/90 border border-slate-800 p-3 rounded-xl shadow-sm hover:border-rose-500/50"><p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono">Cavitación (σ Thoma)</p><div class="flex items-baseline gap-1 mt-1"><span id="kpi-sigma" class="text-xl font-black font-mono text-cyan-300 tabular">0.220</span></div><p class="text-[10px] text-slate-400 mt-2 font-mono">σ Crítico: <span id="kpi-sigmac" class="text-rose-400">0.115</span></p></div>
+    </section>
+
+    <div id="view-overview" class="view-panel space-y-4">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden relative shadow-lg h-[360px]">
+          <div id="overview-3d-canvas" class="w-full h-full"></div>
+          <div class="absolute top-3 left-3 bg-slate-950/80 border border-slate-800 backdrop-blur text-white px-3 py-1.5 rounded-xl text-xs font-mono flex items-center gap-2 shadow-lg"><span class="w-2 h-2 rounded-full bg-cyan-400 pulse-dot"></span><span>Gemelo Digital 3D en Vivo</span></div>
+          <div class="absolute bottom-3 right-3 flex items-center gap-2"><button onclick="switchView('3d')" class="bg-slate-800/90 hover:bg-slate-700 border border-slate-700 text-white text-xs font-medium px-3 py-1.5 rounded-lg backdrop-blur transition flex items-center gap-1.5"><span>Expandir Vista 3D</span><i class="fa-solid fa-expand text-cyan-400"></i></button></div>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-lg space-y-4 flex flex-col justify-between">
+          <div class="flex justify-between items-center border-b border-slate-800 pb-2"><h3 class="text-xs font-bold text-slate-200 uppercase tracking-wider font-mono flex items-center gap-2"><i class="fa-solid fa-sliders text-cyan-400"></i> Consola Rápida de Mando</h3><span id="quick-state-tag" class="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400">DETENIDA</span></div>
+          <div class="mt-4 space-y-4">
+            <div><div class="flex justify-between text-xs font-mono mb-1"><span class="text-slate-400">Apertura Distribuidor (a)</span><span id="quick-a-val" class="text-cyan-400 font-bold">65.0 %</span></div><input type="range" id="quick-a-slider" min="0" max="100" step="0.5" value="65" oninput="setGateCommand(this.value)" class="w-full"></div>
+            <div><div class="flex justify-between text-xs font-mono mb-1"><span class="text-slate-400">Consigna Velocidad (n*)</span><span id="quick-n-val" class="text-amber-400 font-bold">1300 RPM</span></div><input type="range" id="quick-n-slider" min="500" max="1800" step="10" value="1300" oninput="setSpeedRef(this.value)" class="w-full"></div>
+            <div><div class="flex justify-between text-xs font-mono mb-1"><span class="text-slate-400">Caída Neta Embalse (H₀)</span><span id="quick-h-val" class="text-indigo-300 font-bold">35.0 m</span></div><input type="range" id="quick-h-slider" min="5" max="60" step="0.5" value="35" oninput="setHead(this.value)" class="w-full"></div>
+          </div>
+          <div class="space-y-2 pt-2 border-t border-slate-800"><div class="grid grid-cols-2 gap-2"><button onclick="startUnit()" class="bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white text-xs font-bold py-2.5 rounded-xl transition shadow-md flex items-center justify-center gap-2"><i class="fa-solid fa-play"></i> ARRANCAR</button><button onclick="stopUnit()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-2"><i class="fa-solid fa-stop"></i> PARAR</button></div><button onclick="toggleGridSync()" id="btn-sync-grid" class="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold py-2 rounded-xl transition flex items-center justify-center gap-2"><i class="fa-solid fa-plug"></i> ACOPLAR A RED ELÉCTRICA</button></div>
+        </div>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-lg"><div class="flex justify-between items-center mb-2"><h4 class="text-xs font-mono font-bold text-slate-300">RESPUESTA DE VELOCIDAD RPM (30 Hz)</h4><span class="text-[10px] font-mono text-cyan-400">Gobernador PID</span></div><div id="chart-mini-rpm" class="mini-chart"></div></div>
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-lg"><div class="flex justify-between items-center mb-2"><h4 class="text-xs font-mono font-bold text-slate-300">POTENCIA GENERADA (kW)</h4><span class="text-[10px] font-mono text-amber-400">P_hidráulica vs P_eléctrica</span></div><div id="chart-mini-power" class="mini-chart"></div></div>
+      </div>
+    </div>
+
+    <div id="view-3d" class="view-panel hidden">
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden relative shadow-2xl h-[calc(100vh-180px)] min-h-[500px]">
+        <div id="full-3d-canvas" class="w-full h-full"></div>
+        <div class="absolute top-4 left-4 bg-slate-950/85 border border-slate-800/80 backdrop-blur p-4 rounded-2xl text-xs space-y-3 w-60 shadow-xl">
+          <p class="font-bold font-mono text-slate-200 border-b border-slate-800 pb-1.5 flex items-center justify-between"><span>Capas del Modelo 3D</span><i class="fa-solid fa-layer-group text-cyan-400"></i></p>
+          <div class="space-y-2"><label class="flex items-center gap-2 cursor-pointer hover:text-white transition"><input type="checkbox" id="layer-casing" checked onchange="toggle3DLayer('casing', this.checked)" class="accent-cyan-500 rounded"><span>Carcasa Espiral Voluta</span></label><label class="flex items-center gap-2 cursor-pointer hover:text-white transition"><input type="checkbox" id="layer-vanes" checked onchange="toggle3DLayer('vanes', this.checked)" class="accent-cyan-500 rounded"><span>Álabes Guía Distribuidor</span></label><label class="flex items-center gap-2 cursor-pointer hover:text-white transition"><input type="checkbox" id="layer-runner" checked onchange="toggle3DLayer('runner', this.checked)" class="accent-cyan-500 rounded"><span>Rodete Francis Paramétrico</span></label><label class="flex items-center gap-2 cursor-pointer hover:text-white transition"><input type="checkbox" id="layer-particles" checked onchange="toggle3DLayer('particles', this.checked)" class="accent-cyan-500 rounded"><span>Vectores Flujo de Agua</span></label><label class="flex items-center gap-2 cursor-pointer hover:text-white transition"><input type="checkbox" id="layer-generator" checked onchange="toggle3DLayer('generator', this.checked)" class="accent-cyan-500 rounded"><span>Generador y Eje</span></label></div>
+          <p class="font-bold font-mono text-slate-200 border-b border-slate-800 pt-2 pb-1.5">Presets Cámara</p>
+          <div class="grid grid-cols-2 gap-1.5"><button onclick="set3DCamera('iso')" class="bg-slate-800 hover:bg-slate-700 py-1 px-2 rounded font-mono text-[10px]">Isométrica</button><button onclick="set3DCamera('runner')" class="bg-slate-800 hover:bg-slate-700 py-1 px-2 rounded font-mono text-[10px]">Rodete</button><button onclick="set3DCamera('top')" class="bg-slate-800 hover:bg-slate-700 py-1 px-2 rounded font-mono text-[10px]">Superior</button><button onclick="set3DCamera('cutaway')" class="bg-slate-800 hover:bg-slate-700 py-1 px-2 rounded font-mono text-[10px]">Corte</button></div>
+        </div>
+        <div class="absolute bottom-4 right-4 bg-slate-950/85 border border-slate-800/80 backdrop-blur p-3.5 rounded-2xl text-xs font-mono space-y-1.5 w-56 shadow-xl">
+          <div class="flex justify-between border-b border-slate-800 pb-1"><span class="text-slate-400">RPM Rodete:</span><span id="3d-tele-rpm" class="font-bold text-cyan-400">0.0</span></div>
+          <div class="flex justify-between border-b border-slate-800 pb-1"><span class="text-slate-400">Ángulo Álabes:</span><span id="3d-tele-pitch" class="font-bold text-amber-400">0.0°</span></div>
+          <div class="flex justify-between border-b border-slate-800 pb-1"><span class="text-slate-400">Velocidad Flujo V1:</span><span id="3d-tele-vel" class="font-bold text-blue-400">0.0 m/s</span></div>
+          <div class="flex justify-between"><span class="text-slate-400">Torque Hidráulico:</span><span id="3d-tele-torque" class="font-bold text-emerald-400">0 N·m</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="view-pid" class="view-panel hidden">
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-2xl space-y-4">
+        <div class="flex justify-between items-center flex-wrap gap-2 border-b border-slate-800 pb-3"><div><h3 class="text-base font-bold font-mono text-white">Esquema del Proceso e Instrumentación (P&amp;ID ISA-5.1)</h3><p class="text-xs text-slate-400">Diagrama hidráulico y unifilar eléctrico dinámico en tiempo real</p></div>
+        <div class="flex items-center gap-3 font-mono text-xs"><span class="bg-slate-800 px-3 py-1 rounded-lg border border-slate-700 text-cyan-400">MIV: <strong id="pid-miv-status">ABIERTA</strong></span><span class="bg-slate-800 px-3 py-1 rounded-lg border border-slate-700 text-amber-400">INTERRUPTOR 52-1: <strong id="pid-breaker-status">ABIERTO</strong></span></div></div>
+        <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 overflow-x-auto flex justify-center"><svg viewBox="0 0 1000 460" class="w-full max-w-[980px] min-w-[750px]">
+          <defs><linearGradient id="waterBodyGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#38bdf8" stop-opacity="0.6"/><stop offset="100%" stop-color="#0284c7" stop-opacity="0.9"/></linearGradient></defs>
+          <rect x="20" y="40" width="160" height="180" rx="12" fill="#0f172a" stroke="#0284c7" stroke-width="2.5"/><path d="M 20,90 Q 60,80 100,90 T 180,90 L 180,220 L 20,220 Z" fill="url(#waterBodyGrad)"/><text x="100" y="65" text-anchor="middle" font-weight="800" fill="#e0f2fe" font-size="12" font-family="Inter">EMBALSE SUPERIOR</text><text x="100" y="130" text-anchor="middle" font-weight="900" fill="#ffffff" font-size="20" font-family="JetBrains Mono" id="svg-reservoir-h">35.0 m</text><text x="100" y="150" text-anchor="middle" font-size="10" fill="#bae6fd" font-family="Inter">Caída Neta H₀</text>
+          <path d="M 180,160 L 340,260" stroke="#334155" stroke-width="24" stroke-linecap="round"/><path d="M 180,160 L 340,260" stroke="#0ea5e9" stroke-width="10" class="flow-active" id="svg-penstock-flow"/>
+          <rect x="250" y="60" width="40" height="120" rx="6" fill="#0f172a" stroke="#0284c7" stroke-width="2"/><rect x="252" y="110" width="36" height="68" fill="#0284c7" opacity="0.6"/><text x="270" y="50" text-anchor="middle" font-size="9" fill="#94a3b8" font-weight="700">Chimenea Equilibrio</text>
+          <circle cx="340" cy="260" r="18" fill="#1e293b" stroke="#f43f5e" stroke-width="3"/><path d="M 330,250 L 350,270 M 330,270 L 350,250" stroke="#f43f5e" stroke-width="3"/><text x="340" y="295" text-anchor="middle" font-size="10" fill="#cbd5e1" font-weight="700">MIV-101</text>
+          <circle cx="490" cy="285" r="75" fill="#0f172a" stroke="#0284c7" stroke-width="3"/><circle cx="490" cy="285" r="42" fill="#0369a1" stroke="#38bdf8" stroke-width="2.5"/><g id="svg-runner-group" transform="rotate(0 490 285)"><line x1="490" y1="248" x2="490" y2="322" stroke="#e0f2fe" stroke-width="5"/><line x1="453" y1="285" x2="527" y2="285" stroke="#e0f2fe" stroke-width="5"/><circle cx="490" cy="285" r="12" fill="#0284c7"/></g>
+          <text x="490" y="380" text-anchor="middle" font-weight="800" fill="#f8fafc" font-size="13">Rodete Francis</text><text x="490" y="400" text-anchor="middle" font-weight="800" fill="#38bdf8" font-size="14" font-family="JetBrains Mono" id="svg-runner-rpm">0 RPM</text>
+          <rect x="565" y="278" width="110" height="14" fill="#64748b" rx="4"/><text x="620" y="270" text-anchor="middle" font-size="10" fill="#94a3b8" font-weight="600">Eje Principal</text>
+          <rect x="675" y="225" width="130" height="120" rx="16" fill="#1e293b" stroke="#f59e0b" stroke-width="3"/><circle cx="740" cy="285" r="35" fill="#f59e0b" stroke="#b45309" stroke-width="2" opacity="0.8"/><text x="740" y="292" text-anchor="middle" font-weight="900" fill="#0f172a" font-size="18">GEN</text><text x="740" y="365" text-anchor="middle" font-weight="800" fill="#f8fafc" font-size="13">Generador Síncrono</text><text x="740" y="385" text-anchor="middle" font-weight="800" fill="#f59e0b" font-size="14" font-family="JetBrains Mono" id="svg-gen-kw">0.0 kW</text>
+          <path d="M 805,285 L 870,285" stroke="#f59e0b" stroke-width="4"/><rect x="870" y="265" width="40" height="40" rx="8" fill="#0f172a" stroke="#10b981" stroke-width="3"/><path d="M 880,285 L 900,285" stroke="#10b981" stroke-width="4"/><text x="890" y="322" text-anchor="middle" font-size="10" fill="#10b981" font-weight="800">52-1</text>
+          <rect x="925" y="240" width="60" height="90" rx="10" fill="#064e3b" stroke="#10b981" stroke-width="2.5"/><text x="955" y="280" text-anchor="middle" font-weight="800" fill="#ecfdf5" font-size="12">RED</text><text x="955" y="298" text-anchor="middle" font-weight="700" fill="#a7f3d0" font-size="11" font-family="JetBrains Mono">60 Hz</text>
+          <path d="M 465,340 L 440,430 L 540,430 L 515,340 Z" fill="#0f172a" stroke="#0284c7" stroke-width="2"/><path d="M 445,400 L 535,400 L 535,430 L 445,430 Z" fill="#0284c7" opacity="0.6"/><text x="490" y="420" text-anchor="middle" font-size="10" fill="#e0f2fe" font-weight="700">Tubo de Aspiración</text>
+          <g font-family="JetBrains Mono" font-size="9" font-weight="700"><rect x="230" y="210" width="65" height="20" rx="4" fill="#090d16" stroke="#0ea5e9"/><text x="262" y="223" fill="#38bdf8" text-anchor="middle" id="svg-tag-fit">0.00 m³/s</text><rect x="370" y="210" width="65" height="20" rx="4" fill="#090d16" stroke="#f59e0b"/><text x="402" y="223" fill="#fbbf24" text-anchor="middle" id="svg-tag-pit">3.43 bar</text><rect x="540" y="245" width="60" height="20" rx="4" fill="#090d16" stroke="#10b981"/><text x="570" y="258" fill="#34d399" text-anchor="middle" id="svg-tag-st">0 RPM</text></g>
+        </svg></div>
+      </div>
+    </div>
+
+    <div id="view-hmi" class="view-panel hidden space-y-4">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-4">
+          <h3 class="text-xs font-bold font-mono text-slate-200 border-b border-slate-800 pb-2 flex items-center gap-2"><i class="fa-solid fa-sliders text-amber-400"></i> Parámetros Gobernador PID</h3>
+          <div class="space-y-3">
+            <div><label class="text-xs font-mono text-slate-400 block mb-1">Ganancia Proporcional (Kp)</label><input type="number" id="pid-kp" value="3.5" step="0.1" onchange="updatePIDParams()" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 font-mono text-white text-sm focus:border-cyan-500 outline-none"></div>
+            <div><label class="text-xs font-mono text-slate-400 block mb-1">Tiempo Integral Ti (s)</label><input type="number" id="pid-ti" value="1.8" step="0.1" onchange="updatePIDParams()" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 font-mono text-white text-sm focus:border-cyan-500 outline-none"></div>
+            <div><label class="text-xs font-mono text-slate-400 block mb-1">Tiempo Derivativo Td (s)</label><input type="number" id="pid-td" value="0.2" step="0.05" onchange="updatePIDParams()" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 font-mono text-white text-sm focus:border-cyan-500 outline-none"></div>
+            <div><label class="text-xs font-mono text-slate-400 block mb-1">Estatismo / Droop R (%)</label><input type="number" id="pid-droop" value="4.0" step="0.5" onchange="updatePIDParams()" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 font-mono text-white text-sm focus:border-cyan-500 outline-none"></div>
+          </div>
+          <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-1.5 text-xs font-mono"><div class="flex justify-between"><span class="text-slate-500">Término P:</span><span id="pid-p-term" class="text-cyan-400">0.00</span></div><div class="flex justify-between"><span class="text-slate-500">Término I:</span><span id="pid-i-term" class="text-amber-400">0.00</span></div><div class="flex justify-between"><span class="text-slate-500">Término D:</span><span id="pid-d-term" class="text-indigo-400">0.00</span></div><div class="flex justify-between pt-1 border-t border-slate-800"><span class="text-slate-300 font-bold">Salida Servo:</span><span id="pid-out-total" class="text-emerald-400 font-bold">0.00 %</span></div></div>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-4 flex flex-col justify-between">
+          <div><h3 class="text-xs font-bold font-mono text-slate-200 border-b border-slate-800 pb-2 flex items-center gap-2"><i class="fa-solid fa-rotate text-blue-400"></i> Sincronoscopio de Red</h3>
+          <div class="my-4 flex flex-col items-center"><div class="w-36 h-36 rounded-full border-4 border-slate-800 bg-slate-950 relative flex items-center justify-center shadow-inner"><div class="absolute top-1 w-1 h-3 bg-emerald-500"></div><span class="absolute top-5 text-[9px] font-mono text-emerald-400">0° SYNC</span><div id="synchro-needle" class="w-1 h-16 bg-amber-400 origin-bottom absolute bottom-1/2 rounded-full transition-transform duration-75" style="transform: rotate(0deg)"></div><div class="w-3 h-3 rounded-full bg-white z-10"></div></div>
+          <div class="mt-3 text-center font-mono text-xs space-y-0.5"><p class="text-slate-400">Diferencia Frecuencia Δf: <span id="synchro-df" class="text-amber-400 font-bold">+0.00 Hz</span></p><p class="text-slate-400">Diferencia Fase Δφ: <span id="synchro-dphi" class="text-cyan-400 font-bold">0.0°</span></p></div></div>
+          <button onclick="attemptAutoSync()" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold py-2.5 rounded-xl transition shadow-lg flex items-center justify-center gap-2"><i class="fa-solid fa-bolt"></i> AUTO-SINCRONIZAR Y CERRAR 52-1</button></div>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-4 flex flex-col justify-between">
+          <h3 class="text-xs font-bold font-mono text-slate-200 border-b border-slate-800 pb-2 flex items-center gap-2"><i class="fa-solid fa-gears text-emerald-400"></i> Respuesta Servomotor</h3>
+          <div class="space-y-3 font-mono text-xs">
+            <div><div class="flex justify-between mb-1"><span class="text-slate-400">Posición Real Distribuidor</span><span id="hmi-servo-pos" class="text-emerald-400 font-bold">0.0 %</span></div><div class="w-full bg-slate-950 h-3 rounded-full border border-slate-800 overflow-hidden"><div id="bar-servo-pos" class="bg-emerald-500 h-full transition-all duration-100" style="width:0%"></div></div></div>
+            <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-2"><div class="flex justify-between"><span class="text-slate-500">Límite Velocidad Servo:</span><span class="text-slate-300">12.5 %/s</span></div><div class="flex justify-between"><span class="text-slate-500">Banda Histéresis:</span><span class="text-slate-300">0.15 %</span></div><div class="flex justify-between"><span class="text-slate-500">Presión Aceite Oleodinámico:</span><span class="text-emerald-400 font-bold">40.0 bar</span></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="view-trends" class="view-panel hidden space-y-4">
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-lg space-y-2"><h4 class="text-xs font-mono font-bold text-slate-200">VELOCIDAD Y CONSIGNA (RPM)</h4><div id="chart-main-speed" class="mini-chart"></div></div>
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-lg space-y-2"><h4 class="text-xs font-mono font-bold text-slate-200">POTENCIA MECÁNICA Y ELÉCTRICA (kW)</h4><div id="chart-main-power" class="mini-chart"></div></div>
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-lg space-y-2"><h4 class="text-xs font-mono font-bold text-slate-200">CAÍDA NETA Y CAUDAL (m / m³/s)</h4><div id="chart-main-pressure" class="mini-chart"></div></div>
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-lg space-y-2"><div class="flex justify-between items-center"><h4 class="text-xs font-mono font-bold text-slate-200">MAPA DE EFICIENCIA DE COLINA (HILL CHART)</h4><span class="text-[10px] font-mono text-emerald-400">★ Punto Óptimo BEP</span></div><canvas id="hill-chart-canvas" class="w-full h-56 rounded-xl border border-slate-800 bg-slate-950"></canvas></div>
+      </div>
+    </div>
+
+    <div id="view-sizing" class="view-panel hidden space-y-4">
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-4">
+          <h3 class="text-xs font-bold font-mono text-slate-200 border-b border-slate-800 pb-2">Entradas de Dimensionamiento Hidráulico</h3>
+          <div class="grid grid-cols-2 gap-3">
+            <div><label class="text-xs font-mono text-slate-400 block mb-1">Caída de Diseño H_d (m)</label><input type="number" id="size-h" value="35.0" step="0.5" oninput="calculateSizingEngine()" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 font-mono text-white text-sm outline-none"></div>
+            <div><label class="text-xs font-mono text-slate-400 block mb-1">Caudal de Diseño Q_d (m³/s)</label><input type="number" id="size-q" value="0.85" step="0.05" oninput="calculateSizingEngine()" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 font-mono text-white text-sm outline-none"></div>
+            <div><label class="text-xs font-mono text-slate-400 block mb-1">Velocidad Síncrona n (RPM)</label><input type="number" id="size-n" value="1300" step="10" oninput="calculateSizingEngine()" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 font-mono text-white text-sm outline-none"></div>
+            <div><label class="text-xs font-mono text-slate-400 block mb-1">Eficiencia Objetivo η (%)</label><input type="number" id="size-eta" value="91.5" step="0.5" oninput="calculateSizingEngine()" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 font-mono text-white text-sm outline-none"></div>
+          </div>
+          <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2 font-mono text-xs"><div class="flex justify-between"><span class="text-slate-400">Velocidad Específica (n_s):</span><span id="res-ns" class="text-cyan-400 font-bold">165.4 rpm</span></div><div class="flex justify-between"><span class="text-slate-400">Diámetro Entrada Rodete (D1):</span><span id="res-d1" class="text-amber-400 font-bold">0.485 m</span></div><div class="flex justify-between"><span class="text-slate-400">Diámetro Salida Rodete (D2):</span><span id="res-d2" class="text-indigo-300 font-bold">0.412 m</span></div><div class="flex justify-between"><span class="text-slate-400">Velocidad Periférica (U1):</span><span id="res-u1" class="text-emerald-400 font-bold">33.01 m/s</span></div><div class="flex justify-between"><span class="text-slate-400">Velocidad Torbellino (V_w1):</span><span id="res-vw1" class="text-rose-400 font-bold">10.12 m/s</span></div><div class="flex justify-between"><span class="text-slate-400">Altura de Euler (H_e):</span><span id="res-he" class="text-blue-300 font-bold">32.02 m</span></div><div class="flex justify-between pt-2 border-t border-slate-800"><span class="text-slate-200">Clasificación Turbina:</span><span id="res-type" class="text-cyan-300 font-bold">Francis Normal</span></div></div>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-3">
+          <h3 class="text-xs font-bold font-mono text-slate-200 border-b border-slate-800 pb-2">Triángulos de Velocidad Euler a la Entrada (D1)</h3><canvas id="velocity-triangle-canvas" class="w-full h-60 rounded-xl bg-slate-950 border border-slate-800"></canvas><p class="text-[11px] text-slate-400 font-mono">U1 = Vel. Periférica | V1 = Vel. Absoluta | W1 = Vel. Relativa | V_w1 = Vel. Torbellino (Whirl)</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="view-alarms" class="view-panel hidden space-y-4">
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-2xl space-y-4">
+        <div class="flex justify-between items-center flex-wrap gap-2 border-b border-slate-800 pb-3"><div><h3 class="text-base font-bold font-mono text-white">Registro de Alarmas y Secuencia de Eventos (ISA-18.2)</h3><p class="text-xs text-slate-400">Histórico de eventos con estampa de tiempo y diagnóstico de disparos</p></div>
+        <div class="flex gap-2"><select id="alarm-filter-select" onchange="renderAlarmsTable()" class="bg-slate-950 border border-slate-800 text-xs font-mono px-3 py-1.5 rounded-lg text-slate-200 outline-none"><option value="ALL">Todas las Severidades</option><option value="CRITICAL">Solo Críticas (P1)</option><option value="WARNING">Solo Advertencias (P2)</option><option value="INFO">Informativas (P3)</option></select><button onclick="clearAlarmLog()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-mono px-3 py-1.5 rounded-lg transition"><i class="fa-solid fa-trash-can"></i> Limpiar</button></div></div>
+        <div class="overflow-x-auto"><table class="w-full text-left font-mono text-xs"><thead class="bg-slate-950 text-slate-400 border-b border-slate-800"><tr><th class="py-2.5 px-3">Hora</th><th class="py-2.5 px-3">Severidad</th><th class="py-2.5 px-3">Código</th><th class="py-2.5 px-3">Descripción Mensaje</th><th class="py-2.5 px-3">Estado</th></tr></thead><tbody id="alarm-table-body" class="divide-y divide-slate-800/60 text-slate-300"></tbody></table></div>
+      </div>
+    </div>
+
+    <div id="view-labs" class="view-panel hidden space-y-4">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div onclick="runLabScenario('startup')" class="bg-slate-900 border border-slate-800 hover:border-cyan-500/60 p-5 rounded-2xl shadow-lg cursor-pointer transition group"><div class="w-10 h-10 rounded-xl bg-cyan-950 border border-cyan-800 flex items-center justify-center text-cyan-400 mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-play"></i></div><h4 class="font-bold text-sm text-white mb-1">Arranque Black-Start &amp; Sincronización</h4><p class="text-xs text-slate-400 leading-relaxed mb-3">Guía el proceso desde 0 RPM, rampa de apertura y gobernador PID hasta acople a red en 60 Hz.</p><span class="text-xs font-mono text-cyan-400 font-bold flex items-center gap-1">Ejecutar Escenario <i class="fa-solid fa-arrow-right"></i></span></div>
+        <div onclick="runLabScenario('rejection')" class="bg-slate-900 border border-slate-800 hover:border-rose-500/60 p-5 rounded-2xl shadow-lg cursor-pointer transition group"><div class="w-10 h-10 rounded-xl bg-rose-950 border border-rose-800 flex items-center justify-center text-rose-400 mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-bolt-lightning"></i></div><h4 class="font-bold text-sm text-white mb-1">Rechazo de Carga 100%</h4><p class="text-xs text-slate-400 leading-relaxed mb-3">Simula la apertura súbita del interruptor 52-1, observando sobrevelocidad transitoria y onda de golpe de ariete.</p><span class="text-xs font-mono text-rose-400 font-bold flex items-center gap-1">Ejecutar Escenario <i class="fa-solid fa-arrow-right"></i></span></div>
+        <div onclick="runLabScenario('cavitation')" class="bg-slate-900 border border-slate-800 hover:border-amber-500/60 p-5 rounded-2xl shadow-lg cursor-pointer transition group"><div class="w-10 h-10 rounded-xl bg-amber-950 border border-amber-800 flex items-center justify-center text-amber-400 mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-water"></i></div><h4 class="font-bold text-sm text-white mb-1">Prueba Límite Cavitación</h4><p class="text-xs text-slate-400 leading-relaxed mb-3">Operación a baja caída y apertura reducida para detonar caída de sigma Thoma por debajo del valor crítico.</p><span class="text-xs font-mono text-amber-400 font-bold flex items-center gap-1">Ejecutar Escenario <i class="fa-solid fa-arrow-right"></i></span></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none w-80"></div>
+<script>
+'use strict';
+const PHY = {
+  rho: 998.2, g: 9.81, H_design: 35.0, Q_design: 0.85, n_design: 1300.0, eta_max: 0.92, gate_opt: 65.0,
+  J_inertia: 42.5, tau_servo: 0.8, penstock_L: 120.0, penstock_D: 0.75, penstock_A: 0.4418,
+  friction_f: 0.018, water_hammer_a: 1100, H_atm: 10.33, H_v: 0.25, H_s: 1.5, sigma_crit: 0.115,
+  rpm_trip: 1850.0, dt: 1/30
+};
+const S = {
+  gateCmd: 65.0, headGross: PHY.H_design, nRef: PHY.n_design, gateActual: 0.0, rpm: 0.0, flow: 0.0,
+  v_penstock: 0.0, h_f: 0.0, waterHammerH: 0.0, headNet: PHY.H_design, pHyd: 0.0, pMech: 0.0, pElec: 0.0, eta: 0.0,
+  torqueHyd: 0.0, torqueElec: 0.0, sigmaCavitation: 0.22,
+  D1: 0.485, U1: 0.0, V1: 0.0, W1: 0.0, V_w1: 0.0, EulerHead: 0.0,
+  running: false, tripped: false, gridSynced: false, soundOn: true, audioCtx: null,
+  Kp: 3.5, Ti: 1.8, Td: 0.2, droop: 4.0, pTerm: 0.0, iTerm: 0.0, dTerm: 0.0, govOut: 0.0,
+  integralErr: 0.0, lastErr: 0.0, t: 0.0, uptimeStart: Date.now(), lastWallTime: 0.0, accumulatedDt: 0.0,
+  alarms: [], _overspeedTriggered: false, _cavitationWarning: false
+};
+const $ = id => document.getElementById(id);
+const setText = (id, txt) => { const el = $(id); if (el) el.textContent = txt; };
+const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+function showToast(msg, type = 'info') {
+  const colors = { info: 'bg-cyan-900 border-cyan-500 text-cyan-200', success: 'bg-emerald-900 border-emerald-500 text-emerald-200', warning: 'bg-amber-900 border-amber-500 text-amber-200', error: 'bg-rose-900 border-rose-500 text-rose-200' };
+  const icons = { info: 'fa-circle-info', success: 'fa-circle-check', warning: 'fa-triangle-exclamation', error: 'fa-circle-xmark' };
+  const container = $('toast-container'); if (!container) return;
+  const toast = document.createElement('div');
+  toast.className = `toast-enter p-3 rounded-xl border ${colors[type]} text-xs font-mono shadow-2xl flex items-center gap-2.5 pointer-events-auto`;
+  toast.innerHTML = `<i class="fa-solid ${icons[type]} text-sm"></i><span>${msg}</span>`;
+  container.appendChild(toast);
+  setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity 0.3s ease'; setTimeout(() => toast.remove(), 300); }, 3500);
+}
+function initAudio() { if (!S.audioCtx) { try { S.audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){} } }
+function playAlarmBeep(freq = 880, dur = 0.15) { if (!S.soundOn) return; initAudio(); if (!S.audioCtx) return; try { const osc = S.audioCtx.createOscillator(); const gain = S.audioCtx.createGain(); osc.type = 'square'; osc.frequency.setValueAtTime(freq, S.audioCtx.currentTime); gain.gain.setValueAtTime(0.05, S.audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.001, S.audioCtx.currentTime + dur); osc.connect(gain); gain.connect(S.audioCtx.destination); osc.start(); osc.stop(S.audioCtx.currentTime + dur); } catch(e){} }
+function toggleSound() { S.soundOn = !S.soundOn; const btn = $('btn-sound'); if (btn) btn.innerHTML = S.soundOn ? '<i class="fa-solid fa-volume-low text-brand-400"></i>' : '<i class="fa-solid fa-volume-xmark text-slate-500"></i>'; showToast('Sonido ' + (S.soundOn ? 'Activado' : 'Silenciado'), 'info'); }
+const VIEWS = ['overview', '3d', 'pid', 'hmi', 'trends', 'sizing', 'alarms', 'labs'];
+let currentView = 'overview';
+function switchView(name) { if (!VIEWS.includes(name)) return; VIEWS.forEach(v => { const el = $(v == '3d' ? 'view-3d' : ('view-' + v)); if (el) el.classList.toggle('hidden', v !== name); }); document.querySelectorAll('.nav-item').forEach(btn => btn.classList.toggle('active-slide', btn.dataset.nav === name)); currentView = name; if (name === '3d' && !full3DInit) initFull3D(); if (name === 'trends') renderHillChart(); if (name === 'sizing') calculateSizingEngine(); if (name === 'alarms') renderAlarmsTable(); }
+function toggleTheme() { const isDark = document.documentElement.classList.toggle('dark'); $('theme-icon').className = isDark ? 'fa-solid fa-sun text-amber-400' : 'fa-solid fa-moon text-slate-700'; localStorage.setItem('francis-uts-theme', isDark ? 'light' : 'dark'); }
+function calculateFrancisHillEfficiency(qRatio, nRatio) { const dq = qRatio - 1.0, dn = nRatio - 1.0; return clamp(PHY.eta_max * (1.0 - 0.45 * dq * dq - 0.30 * dn * dn - 0.15 * dq * dn), 0.10, PHY.eta_max); }
+function physicsStep(dt) {
+  if (S.tripped) { S.rpm = Math.max(0, S.rpm - 180.0 * dt); S.gateActual += (0.0 - S.gateActual) * Math.min(1.0, dt / 0.3); S.flow *= (1.0 - 2.5 * dt); S.pHyd = 0; S.pMech = 0; S.pElec = 0; S.eta = 0; S.waterHammerH *= 0.90; return; }
+  if (!S.running) { S.rpm = Math.max(0, S.rpm - 80.0 * dt); S.gateActual += (0.0 - S.gateActual) * Math.min(1.0, dt / PHY.tau_servo); S.flow *= 0.85; S.pHyd = 0; S.pMech = 0; S.pElec = 0; S.eta = 0; S.waterHammerH *= 0.90; return; }
+  const maxRate = 12.5 * dt; const dGate = clamp(S.gateCmd - S.gateActual, -maxRate, maxRate); S.gateActual = clamp(S.gateActual + dGate, 0, 100);
+  const qTarget = PHY.Q_design * (S.gateActual / PHY.gate_opt) * Math.sqrt(Math.max(1.0, S.headGross) / PHY.H_design); const prevFlow = S.flow;
+  S.flow += (qTarget - S.flow) * Math.min(1.0, dt * 5.0); S.v_penstock = S.flow / PHY.penstock_A;
+  S.h_f = PHY.friction_f * (PHY.penstock_L / PHY.penstock_D) * ((S.v_penstock * S.v_penstock) / (2 * PHY.g));
+  const dv = (S.flow - prevFlow) / PHY.penstock_A; S.waterHammerH = - (PHY.water_hammer_a / PHY.g) * (dv / dt) * 0.05;
+  S.headNet = Math.max(2.0, S.headGross - S.h_f + S.waterHammerH);
+  const qRatio = Math.max(0.1, S.flow / PHY.Q_design); const nRatio = Math.max(0.2, S.rpm / PHY.n_design);
+  S.eta = calculateFrancisHillEfficiency(qRatio, nRatio) * 100.0;
+  S.pHyd = (PHY.rho * PHY.g * S.flow * S.headNet) / 1000.0; S.pMech = S.pHyd * (S.eta / 100.0);
+  const omega = (S.rpm * 2.0 * Math.PI) / 60.0; S.U1 = (Math.PI * S.D1 * S.rpm) / 60.0; S.V1 = Math.sqrt(2 * PHY.g * S.headNet) * 0.95;
+  S.EulerHead = S.headNet * (S.eta / 100.0) * 0.95; S.V_w1 = S.U1 > 0.1 ? (PHY.g * S.EulerHead) / S.U1 : 0.0;
+  S.W1 = Math.sqrt(Math.max(0, S.V1 * S.V1 + S.U1 * S.U1 - 2 * S.U1 * S.V_w1));
+  S.torqueHyd = omega > 0.1 ? (S.pMech * 1000.0) / omega : 0.0;
+  if (S.gridSynced) { S.rpm += (PHY.n_design - S.rpm) * Math.min(1.0, dt * 10.0) + (Math.random() - 0.5) * 0.2; S.pElec = S.pMech * 0.97; S.torqueElec = omega > 0.1 ? (S.pElec * 1000.0) / omega : 0.0; }
+  else { S.pElec = 0.0; S.torqueElec = 0.0; const torqueFrictionLoss = 0.8 * omega; const dOmega = (S.torqueHyd - S.torqueElec - torqueFrictionLoss) / PHY.J_inertia; S.rpm = clamp(S.rpm + dOmega * (60.0 / (2.0 * Math.PI)) * dt, 0, PHY.rpm_trip + 100); }
+  if (!S.gridSynced && S.running) { const err = S.nRef - S.rpm; S.pTerm = S.Kp * err; S.integralErr = clamp(S.integralErr + err * dt, -50.0, 50.0); S.iTerm = (S.Kp / S.Ti) * S.integralErr; const dErr = (err - S.lastErr) / dt; S.dTerm = S.Kp * S.Td * dErr; S.lastErr = err; const droopFeed = (S.droop / 100.0) * (S.nRef - PHY.n_design); S.govOut = clamp(S.pTerm + S.iTerm + S.dTerm - droopFeed, -100, 100); S.gateCmd = clamp(PHY.gate_opt + S.govOut * 0.5, 0, 100); }
+  S.sigmaCavitation = Math.max(0.01, (PHY.H_atm - PHY.H_v - PHY.H_s) / Math.max(1.0, S.headNet));
+  if (S.sigmaCavitation < PHY.sigma_crit && S.running && !S._cavitationWarning) { S._cavitationWarning = true; pushAlarm('WARNING', 'CAV-201', 'ALERTA CAVITACIÓN: Indice σ de Thoma por debajo del valor crítico (0.115)'); } else if (S.sigmaCavitation >= PHY.sigma_crit) { S._cavitationWarning = false; }
+  if (S.rpm >= PHY.rpm_trip && !S._overspeedTriggered) { S._overspeedTriggered = true; triggerCriticalTrip('DISPARO POR SOBREVELOCIDAD CRÍTICA (RPM > 1850)'); }
+}
+function triggerCriticalTrip(reason) { S.tripped = true; S.running = false; S.gridSynced = false; const banner = $('critical-alarm-banner'); if (banner) banner.classList.remove('hidden'); setText('alarm-banner-text', reason); pushAlarm('CRITICAL', 'TRIP-101', reason); playAlarmBeep(1200, 0.4); showToast(reason, 'error'); updateStateUI(); }
+function updateUI() {
+  setText('top-rpm', S.rpm.toFixed(1)); setText('top-power', S.pElec.toFixed(2)); setText('top-flow', S.flow.toFixed(3)); setText('top-eta', S.eta.toFixed(1)); setText('top-head', S.headNet.toFixed(2));
+  setText('kpi-rpm', S.rpm.toFixed(1)); setText('kpi-pelec', S.pElec.toFixed(2)); setText('kpi-pmech', S.pMech.toFixed(2)); setText('kpi-flow', S.flow.toFixed(3)); setText('kpi-gate', S.gateActual.toFixed(1) + ' %'); setText('kpi-head', S.headNet.toFixed(2)); setText('kpi-whammer', (S.waterHammerH >= 0 ? '+' : '') + S.waterHammerH.toFixed(2) + ' m'); setText('kpi-eta', S.eta.toFixed(1)); setText('kpi-phyd', S.pHyd.toFixed(1) + ' kW'); setText('kpi-sigma', S.sigmaCavitation.toFixed(3)); setText('kpi-nref', Math.round(S.nRef));
+  const barRpm = $('bar-rpm'); if (barRpm) barRpm.style.width = clamp((S.rpm / PHY.rpm_trip) * 100, 0, 100) + '%';
+  setText('pid-p-term', S.pTerm.toFixed(2)); setText('pid-i-term', S.iTerm.toFixed(2)); setText('pid-d-term', S.dTerm.toFixed(2)); setText('pid-out-total', S.govOut.toFixed(1) + ' %');
+  setText('hmi-servo-pos', S.gateActual.toFixed(1) + ' %');
+  const barServo = $('bar-servo-pos'); if (barServo) barServo.style.width = S.gateActual.toFixed(1) + '%';
+  setText('svg-runner-rpm', Math.round(S.rpm) + ' RPM'); setText('svg-gen-kw', S.pElec.toFixed(1) + ' kW'); setText('svg-reservoir-h', S.headGross.toFixed(1) + ' m'); setText('svg-tag-fit', S.flow.toFixed(2) + ' m³/s'); setText('svg-tag-pit', (S.headNet * 0.0981).toFixed(2) + ' bar'); setText('svg-tag-st', Math.round(S.rpm) + ' RPM');
+  const runnerGroup = $('svg-runner-group'); if (runnerGroup) { const rot = (S.t * S.rpm * 6.0) % 360; runnerGroup.setAttribute('transform', `rotate(${rot} 490 285)`); }
+  setText('3d-tele-rpm', S.rpm.toFixed(1)); setText('3d-tele-pitch', (S.gateActual * 0.45).toFixed(1) + '°'); setText('3d-tele-vel', S.v_penstock.toFixed(2) + ' m/s'); setText('3d-tele-torque', Math.round(S.torqueHyd) + ' N·m');
+  const dFreq = (S.rpm - PHY.n_design) / 60.0; setText('synchro-df', (dFreq >= 0 ? '+' : '') + dFreq.toFixed(2) + ' Hz'); setText('synchro-dphi', ((S.t * dFreq * 360) % 360).toFixed(1) + '°'); const needle = $('synchro-needle'); if (needle) needle.style.transform = `rotate(${(S.t * dFreq * 360) % 360}deg)`;
+}
+function updateStateUI() { const badge = $('grid-status-badge'); const led = $('grid-led'); const txt = $('grid-status-txt'); if (S.gridSynced) { if (badge) badge.className = 'hidden sm:flex items-center gap-2 bg-emerald-950 border border-emerald-800 text-emerald-300 text-xs px-2.5 py-1 rounded-lg'; if (led) led.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 pulse-dot'; if (txt) txt.textContent = 'ACOPLADA A RED (60Hz)'; setText('pid-breaker-status', 'CERRADO'); setText('header-op-mode', 'Acoplada a Red'); } else { if (badge) badge.className = 'hidden sm:flex items-center gap-2 bg-slate-800/80 border border-slate-700 text-slate-400 text-xs px-2.5 py-1 rounded-lg'; if (led) led.className = 'w-2.5 h-2.5 rounded-full bg-slate-500'; if (txt) txt.textContent = 'EN ISLA'; setText('pid-breaker-status', 'ABIERTO'); setText('header-op-mode', S.running ? 'Operación en Isla' : 'Detenida'); } setText('quick-state-tag', S.tripped ? 'DISPARADA' : (S.running ? 'EN MARCHA' : 'DETENIDA')); setText('pid-miv-status', S.running ? 'ABIERTA' : 'CERRADA'); }
+function setGateCommand(val) { S.gateCmd = parseFloat(val); setText('quick-a-val', S.gateCmd.toFixed(1) + ' %'); }
+function setSpeedRef(val) { S.nRef = parseFloat(val); setText('quick-n-val', Math.round(S.nRef) + ' RPM'); }
+function setHead(val) { S.headGross = parseFloat(val); setText('quick-h-val', S.headGross.toFixed(1) + ' m'); }
+function startUnit() { if (S.tripped) { showToast('Rearme el disparo de emergencia antes de arrancar', 'warning'); return; } S.running = true; updateStateUI(); pushAlarm('INFO', 'SYS-201', 'Secuencia de arranque iniciada'); showToast('Turbina Francis arrancando...', 'success'); }
+function stopUnit() { S.running = false; S.gridSynced = false; S.integralErr = 0; updateStateUI(); pushAlarm('INFO', 'SYS-202', 'Parada normal ejecutada'); showToast('Turbina en proceso de parada', 'info'); }
+function toggleMasterTrip() { if (!S.tripped) { triggerCriticalTrip('DISPARO DE EMERGENCIA MANUAL ACTIVADO'); } else { S.tripped = false; S._overspeedTriggered = false; S.gateCmd = 0; const banner = $('critical-alarm-banner'); if (banner) banner.classList.add('hidden'); setText('trip-btn-lbl', 'DISPARO CRÍTICO'); pushAlarm('INFO', 'SYS-203', 'Estado de disparo de emergencia rearmado'); showToast('Estado de disparo rearmado correctamente', 'success'); updateStateUI(); } }
+function toggleGridSync() { if (!S.running) { showToast('Arranque la unidad antes de acoplar a la red', 'warning'); return; } if (Math.abs(S.rpm - PHY.n_design) > 30.0) { showToast('Desviación de velocidad alta para acople (requerido ±30 RPM)', 'warning'); return; } S.gridSynced = !S.gridSynced; updateStateUI(); if (S.gridSynced) { pushAlarm('INFO', 'SYNC-101', 'Interruptor 52-1 cerrado: Generador acoplado a la Red Nacional'); showToast('¡Acoplado exitosamente a la Red Eléctrica de 60 Hz!', 'success'); } else { pushAlarm('WARNING', 'SYNC-102', 'Interruptor 52-1 abierto: Generador desacoplado'); showToast('Desacoplado de la Red Eléctrica', 'info'); } }
+function attemptAutoSync() { if (!S.running) startUnit(); showToast('Sincronizador Automático activo: Ajustando velocidad y fase...', 'info'); S.nRef = PHY.n_design; setTimeout(() => { if (S.running) { S.gridSynced = true; updateStateUI(); pushAlarm('INFO', 'SYNC-103', 'Coincidencia de Fase Automática. Interruptor 52-1 cerrado.'); showToast('¡Sincronización Automática Exitosa!', 'success'); } }, 2000); }
+function updatePIDParams() { S.Kp = parseFloat($('pid-kp').value) || 3.5; S.Ti = parseFloat($('pid-ti').value) || 1.8; S.Td = parseFloat($('pid-td').value) || 0.2; S.droop = parseFloat($('pid-droop').value) || 4.0; showToast('Parámetros PID del Gobernador Actualizados', 'info'); }
+let overviewRenderer, overviewScene, overviewCamera, overviewRunner, overviewVanesGroup;
+let fullRenderer, fullScene, fullCamera, fullControls; let fullRunner, fullCasing, fullVanesGroup, fullParticles, fullGenerator; let full3DInit = false;
+function createRunnerMesh() { const group = new THREE.Group(); const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.65, 0.9, 32), new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.8, roughness: 0.2 })); group.add(hub); const bladeCount = 13; for (let i = 0; i < bladeCount; i++) { const angle = (i / bladeCount) * Math.PI * 2; const blade = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.8, 0.95), new THREE.MeshStandardMaterial({ color: 0x0284c7, metalness: 0.6, roughness: 0.3 })); blade.position.set(Math.cos(angle) * 1.0, 0, Math.sin(angle) * 1.0); blade.rotation.y = -angle + 0.4; blade.rotation.z = 0.3; group.add(blade); } const crown = new THREE.Mesh(new THREE.TorusGeometry(1.25, 0.1, 16, 64), new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.9, roughness: 0.1 })); crown.rotation.x = Math.PI / 2; crown.position.y = 0.4; group.add(crown); return group; }
+function createWicketVanesGroup() { const group = new THREE.Group(); for (let i = 0; i < 16; i++) { const angle = (i / 16) * Math.PI * 2; const vane = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.5, 0.35), new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.7, roughness: 0.3 })); vane.position.set(Math.cos(angle) * 1.65, 0, Math.sin(angle) * 1.65); vane.rotation.y = -angle; group.add(vane); } return group; }
+function updateVanesPitch(vanesGroup) { if (!vanesGroup) return; const pitchAngle = (S.gateActual / 100.0) * 0.6; vanesGroup.children.forEach((vane, i) => { const baseAngle = (i / 16) * Math.PI * 2; vane.rotation.y = -baseAngle + pitchAngle; }); }
+function initOverview3D() { const container = $('overview-3d-canvas'); if (!container) return; overviewScene = new THREE.Scene(); overviewScene.background = new THREE.Color(0x0f172a); overviewCamera = new THREE.PerspectiveCamera(40, container.clientWidth / container.clientHeight, 0.1, 100); overviewCamera.position.set(3.2, 2.5, 4.2); overviewCamera.lookAt(0, 0, 0); overviewRenderer = new THREE.WebGLRenderer({ antialias: true }); overviewRenderer.setSize(container.clientWidth, container.clientHeight); overviewRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); container.appendChild(overviewRenderer.domElement); overviewScene.add(new THREE.AmbientLight(0xffffff, 0.6)); const dirLight = new THREE.DirectionalLight(0xffffff, 1.2); dirLight.position.set(5, 8, 5); overviewScene.add(dirLight); overviewRunner = createRunnerMesh(); overviewScene.add(overviewRunner); overviewVanesGroup = createWicketVanesGroup(); overviewScene.add(overviewVanesGroup); function animate() { requestAnimationFrame(animate); if (overviewRunner) overviewRunner.rotation.y += (S.rpm / 60.0) * 0.033; updateVanesPitch(overviewVanesGroup); overviewRenderer.render(overviewScene, overviewCamera); } animate(); }
+function initFull3D() { const container = $('full-3d-canvas'); if (!container) return; fullScene = new THREE.Scene(); fullScene.background = new THREE.Color(0x090d16); fullCamera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100); fullCamera.position.set(5.5, 4.0, 7.5); fullRenderer = new THREE.WebGLRenderer({ antialias: true }); fullRenderer.setSize(container.clientWidth, container.clientHeight); fullRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); container.appendChild(fullRenderer.domElement); fullControls = new THREE.OrbitControls(fullCamera, fullRenderer.domElement); fullControls.enableDamping = true; fullControls.dampingFactor = 0.05; fullScene.add(new THREE.AmbientLight(0xffffff, 0.5)); const dirLight = new THREE.DirectionalLight(0xffffff, 1.2); dirLight.position.set(6, 10, 8); fullScene.add(dirLight); fullCasing = new THREE.Mesh(new THREE.TorusGeometry(2.3, 0.3, 16, 64), new THREE.MeshStandardMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.25, wireframe: true })); fullCasing.rotation.x = Math.PI / 2; fullScene.add(fullCasing); fullVanesGroup = createWicketVanesGroup(); fullScene.add(fullVanesGroup); fullRunner = createRunnerMesh(); fullScene.add(fullRunner); fullGenerator = new THREE.Group(); const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 2.5, 16), new THREE.MeshStandardMaterial({ color: 0x64748b, metalness: 0.9 })); shaft.position.y = 1.6; fullGenerator.add(shaft); const rotor = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.1, 1.0, 24), new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.5 })); rotor.position.y = 2.8; fullGenerator.add(rotor); fullScene.add(fullGenerator); const pCount = 500; const pGeo = new THREE.BufferGeometry(); const pPos = new Float32Array(pCount * 3); for (let i = 0; i < pCount * 3; i += 3) { const a = Math.random() * Math.PI * 2; const r = 1.5 + Math.random() * 1.0; pPos[i] = Math.cos(a) * r; pPos[i+1] = (Math.random() - 0.5) * 1.5; pPos[i+2] = Math.sin(a) * r; } pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3)); fullParticles = new THREE.Points(pGeo, new THREE.PointsMaterial({ color: 0x06b6d4, size: 0.08 })); fullScene.add(fullParticles); full3DInit = true; function animate() { requestAnimationFrame(animate); const rotSpeed = (S.rpm / 60.0) * 0.033; if (fullRunner) fullRunner.rotation.y += rotSpeed; if (fullGenerator) fullGenerator.rotation.y += rotSpeed; if (fullParticles) fullParticles.rotation.y += 0.005 + S.v_penstock * 0.002; updateVanesPitch(fullVanesGroup); fullControls.update(); fullRenderer.render(fullScene, fullCamera); } animate(); }
+function toggle3DLayer(layer, show) { if (layer === 'casing' && fullCasing) fullCasing.visible = show; if (layer === 'vanes' && fullVanesGroup) fullVanesGroup.visible = show; if (layer === 'runner' && fullRunner) fullRunner.visible = show; if (layer === 'particles' && fullParticles) fullParticles.visible = show; if (layer === 'generator' && fullGenerator) fullGenerator.visible = show; }
+function set3DCamera(preset) { if (!fullCamera) return; if (preset === 'iso') fullCamera.position.set(5.5, 4.0, 7.5); if (preset === 'runner') fullCamera.position.set(0, 1.2, 3.2); if (preset === 'top') fullCamera.position.set(0, 8.0, 0.1); if (preset === 'cutaway') fullCamera.position.set(3.5, 0.5, 3.5); fullControls.update(); }
+const historyBuffer = { t: [], rpm: [], nref: [], pmech: [], pelec: [], head: [] };
+let miniRpmChart, miniPowerChart, mainSpeedChart, mainPowerChart, mainPressureChart;
+function initCharts() { const opts = (color1, color2) => ({ width: 300, height: 120, scales: { x: { time: false } }, series: [{}, { stroke: color1, width: 2 }, { stroke: color2, width: 1.5 }], axes: [{ show: false }, { stroke: '#64748b' }], legend: { show: false } }); if ($('chart-mini-rpm')) miniRpmChart = new uPlot(opts('#06b6d4', '#8b5cf6'), [[], [], []], $('chart-mini-rpm')); if ($('chart-mini-power')) miniPowerChart = new uPlot(opts('#f59e0b', '#10b981'), [[], [], []], $('chart-mini-power')); const fullOpts = (title, color1, color2) => ({ width: 500, height: 200, scales: { x: { time: false } }, series: [{}, { label: 'Actual', stroke: color1, width: 2 }, { label: 'Ref', stroke: color2, width: 1.5 }], axes: [{ stroke: '#64748b' }, { stroke: '#64748b' }], legend: { show: true } }); if ($('chart-main-speed')) mainSpeedChart = new uPlot(fullOpts('RPM', '#06b6d4', '#8b5cf6'), [[], [], []], $('chart-main-speed')); if ($('chart-main-power')) mainPowerChart = new uPlot(fullOpts('Power kW', '#f59e0b', '#10b981'), [[], [], []], $('chart-main-power')); if ($('chart-main-pressure')) mainPressureChart = new uPlot(fullOpts('Head m', '#38bdf8', '#a855f7'), [[], [], []], $('chart-main-pressure')); }
+function updateChartData() { historyBuffer.t.push(S.t); historyBuffer.rpm.push(S.rpm); historyBuffer.nref.push(S.nRef); historyBuffer.pmech.push(S.pMech); historyBuffer.pelec.push(S.pElec); historyBuffer.head.push(S.headNet); if (historyBuffer.t.length > 200) { for (let k in historyBuffer) historyBuffer[k].shift(); } const x = historyBuffer.t; if (miniRpmChart) miniRpmChart.setData([x, historyBuffer.rpm, historyBuffer.nref]); if (miniPowerChart) miniPowerChart.setData([x, historyBuffer.pmech, historyBuffer.pelec]); if (mainSpeedChart) mainSpeedChart.setData([x, historyBuffer.rpm, historyBuffer.nref]); if (mainPowerChart) mainPowerChart.setData([x, historyBuffer.pmech, historyBuffer.pelec]); if (mainPressureChart) mainPressureChart.setData([x, historyBuffer.head, historyBuffer.head.map(() => PHY.H_design)]); }
+function renderHillChart() { const canvas = $('hill-chart-canvas'); if (!canvas) return; const ctx = canvas.getContext('2d'); const w = canvas.width = canvas.clientWidth; const h = canvas.height = canvas.clientHeight; ctx.clearRect(0, 0, w, h); for (let x = 0; x < w; x += 8) { for (let y = 0; y < h; y += 8) { const qR = 0.2 + (x / w) * 1.4; const nR = 0.4 + (1 - y / h) * 1.2; const eta = calculateFrancisHillEfficiency(qR, nR); ctx.fillStyle = `hsl(${eta * 145}, 85%, 28%)`; ctx.fillRect(x, y, 8, 8); } } const curX = ((S.flow / PHY.Q_design - 0.2) / 1.4) * w; const curY = (1 - (S.rpm / PHY.n_design - 0.4) / 1.2) * h; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(curX, curY, 8, 0, Math.PI * 2); ctx.stroke(); ctx.fillStyle = '#06b6d4'; ctx.beginPath(); ctx.arc(curX, curY, 4, 0, Math.PI * 2); ctx.fill(); }
+function calculateSizingEngine() { const H = parseFloat($('size-h').value) || PHY.H_design; const Q = parseFloat($('size-q').value) || PHY.Q_design; const n = parseFloat($('size-n').value) || PHY.n_design; const eta = (parseFloat($('size-eta').value) || 91.5) / 100.0; const P_kw = PHY.rho * PHY.g * Q * H * eta / 1000.0; const ns = n * Math.sqrt(P_kw) / Math.pow(H, 1.25); const D1 = 84.5 * Math.sqrt(H) / n; const D2 = D1 * 0.82; const U1 = (Math.PI * D1 * n) / 60.0; const V_w1 = (PHY.g * H * eta) / U1; const EulerH = (U1 * V_w1) / PHY.g; setText('res-ns', ns.toFixed(1) + ' rpm'); setText('res-d1', D1.toFixed(3) + ' m'); setText('res-d2', D2.toFixed(3) + ' m'); setText('res-u1', U1.toFixed(2) + ' m/s'); setText('res-vw1', V_w1.toFixed(2) + ' m/s'); setText('res-he', EulerH.toFixed(2) + ' m'); renderVelocityTriangles(U1, V_w1); }
+function renderVelocityTriangles(U1, Vw1) { const canvas = $('velocity-triangle-canvas'); if (!canvas) return; const ctx = canvas.getContext('2d'); const w = canvas.width = canvas.clientWidth; const h = canvas.height = canvas.clientHeight; ctx.clearRect(0, 0, w, h); const startX = 60; const startY = h - 40; const scale = 4.2; ctx.strokeStyle = '#10b981'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(startX, startY); ctx.lineTo(startX + U1 * scale, startY); ctx.stroke(); ctx.strokeStyle = '#06b6d4'; ctx.beginPath(); ctx.moveTo(startX, startY); ctx.lineTo(startX + Vw1 * scale, startY - 85); ctx.stroke(); ctx.strokeStyle = '#f59e0b'; ctx.beginPath(); ctx.moveTo(startX + U1 * scale, startY); ctx.lineTo(startX + Vw1 * scale, startY - 85); ctx.stroke(); ctx.fillStyle = '#ffffff'; ctx.font = '11px JetBrains Mono'; ctx.fillText('U1 = ' + U1.toFixed(1) + ' m/s', startX + (U1 * scale) / 2 - 20, startY + 20); ctx.fillText('V1', startX + (Vw1 * scale) / 2 - 15, startY - 45); ctx.fillText('W1', startX + Vw1 * scale + 15, startY - 45); }
+function pushAlarm(severity, code, message) { const time = new Date().toTimeString().slice(0, 8); const alarm = { time, severity, code, message, ack: false, id: Date.now() }; S.alarms.unshift(alarm); if (S.alarms.length > 100) S.alarms.pop(); if (severity === 'CRITICAL' || severity === 'WARNING') playAlarmBeep(severity === 'CRITICAL' ? 1000 : 700, 0.2); renderAlarmsTable(); updateAlarmBadges(); }
+function updateAlarmBadges() { const count = S.alarms.filter(a => !a.ack).length; setText('alarm-count-badge', count); setText('nav-alarm-badge', count); }
+function acknowledgeAlarms() { S.alarms.forEach(a => a.ack = true); const banner = $('critical-alarm-banner'); if (banner) banner.classList.add('hidden'); renderAlarmsTable(); updateAlarmBadges(); }
+function clearAlarmLog() { S.alarms = []; renderAlarmsTable(); updateAlarmBadges(); }
+function renderAlarmsTable() { const body = $('alarm-table-body'); if (!body) return; const filterSelect = $('alarm-filter-select'); const filter = filterSelect ? filterSelect.value : 'ALL'; const list = S.alarms.filter(a => filter === 'ALL' || a.severity === filter); if (list.length === 0) { body.innerHTML = '<tr><td colspan="5" class="py-4 text-center text-slate-500">Sin eventos registrados</td></tr>'; return; } body.innerHTML = list.map(a => { const sevClass = { CRITICAL: 'bg-rose-950 text-rose-400 border-rose-800', WARNING: 'bg-amber-950 text-amber-400 border-amber-800', INFO: 'bg-cyan-950 text-cyan-400 border-cyan-800' }[a.severity]; return `<tr class="hover:bg-slate-800/40 transition"><td class="py-2 px-3 text-slate-400">${a.time}</td><td class="py-2 px-3"><span class="px-2 py-0.5 rounded border text-[10px] font-bold ${sevClass}">${a.severity}</span></td><td class="py-2 px-3 font-bold text-white">${a.code}</td><td class="py-2 px-3">${a.message}</td><td class="py-2 px-3 text-slate-500">${a.ack ? '✓ ACK' : '⏳ PENDIENTE'}</td></tr>`; }).join(''); }
+function runLabScenario(type) { if (type === 'startup') { showToast('Ejecutando Práctica: Arranque Black-Start y Sincronización...', 'info'); stopUnit(); setTimeout(() => startUnit(), 1000); setTimeout(() => attemptAutoSync(), 5000); } else if (type === 'rejection') { if (!S.gridSynced) toggleGridSync(); showToast('¡Generando Rechazo de Carga al 100%!', 'warning'); setTimeout(() => { S.gridSynced = false; updateStateUI(); pushAlarm('CRITICAL', 'REJ-301', 'Rechazo de Carga: Disparo de Interruptor 52-1'); }, 1500); } else if (type === 'cavitation') { showToast('Reduciendo caída para provocar cavitación...', 'warning'); setHead(12.0); startUnit(); } }
+function exportCSV() { const rows = [['EstampaTiempo_s', 'RPM', 'Caudal_m3s', 'PotenciaMec_kW', 'PotenciaElec_kW', 'Eficiencia_pct', 'Apertura_pct', 'CaidaNeta_m', 'Sigma_Thoma']]; for (let i = 0; i < historyBuffer.t.length; i++) { rows.push([historyBuffer.t[i].toFixed(2), historyBuffer.rpm[i].toFixed(1), S.flow.toFixed(3), historyBuffer.pmech[i].toFixed(2), historyBuffer.pelec[i].toFixed(2), S.eta.toFixed(1), S.gateActual.toFixed(1), historyBuffer.head[i].toFixed(2), S.sigmaCavitation.toFixed(3)]); } const csv = rows.map(r => r.join(',')).join('\n'); const blob = new Blob([csv], { type: 'text/csv' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `Registro_Francis_UTS_${Date.now()}.csv`; a.click(); URL.revokeObjectURL(url); showToast('Datos de Telemetría Exportados en CSV', 'success'); }
+function mainLoop(now) { requestAnimationFrame(mainLoop); if (!S.lastWallTime) S.lastWallTime = now; const elapsed = (now - S.lastWallTime) / 1000.0; S.lastWallTime = now; S.accumulatedDt += elapsed; while (S.accumulatedDt >= PHY.dt) { physicsStep(PHY.dt); S.t += PHY.dt; S.accumulatedDt -= PHY.dt; } updateUI(); updateChartData(); const up = Math.floor((Date.now() - S.uptimeStart) / 1000); const hh = String(Math.floor(up / 3600)).padStart(2, '0'); const mm = String(Math.floor((up % 3600) / 60)).padStart(2, '0'); const ss = String(up % 60).padStart(2, '0'); setText('uptime-clock', `${hh}:${mm}:${ss}`); }
+window.addEventListener('keydown', e => { if (['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)) return; const k = e.key.toLowerCase(); if (k === ' ') { e.preventDefault(); toggleMasterTrip(); } else if (k === 's') startUnit(); else if (k === 'p') stopUnit(); else if (k === 't') toggleTheme(); else if (k === '1') switchView('overview'); else if (k === '2') switchView('3d'); else if (k === '3') switchView('pid'); else if (k === '4') switchView('hmi'); else if (k === '5') switchView('trends'); else if (k === '6') switchView('sizing'); else if (k === '7') switchView('alarms'); else if (k === '8') switchView('labs'); });
+window.addEventListener('load', () => { const savedTheme = localStorage.getItem('francis-uts-theme') || 'dark'; if (savedTheme === 'light') { document.documentElement.classList.remove('dark'); const icon = $('theme-icon'); if (icon) icon.className = 'fa-solid fa-moon text-slate-700'; } initOverview3D(); initCharts(); calculateSizingEngine(); pushAlarm('INFO', 'SYS-100', 'Sistema SCADA iniciado correctamente'); showToast('Workspace Francis UTS Master v5.0 Ultimate Activo', 'info'); requestAnimationFrame(mainLoop); });
+</script>
+</body>
+</html>

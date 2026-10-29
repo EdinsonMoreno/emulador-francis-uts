@@ -1,0 +1,1318 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Francis UTS · SCADA v2.0</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/uplot@1.6.24/dist/uPlot.min.css">
+<script src="https://cdn.jsdelivr.net/npm/uplot@1.6.24/dist/uPlot.iife.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+tailwind.config = { darkMode:'class', theme:{ extend:{
+  fontFamily:{ sans:['Inter','sans-serif'], mono:['JetBrains Mono','monospace'] },
+  colors:{ brand:{50:'#f0f9ff',100:'#e0f2fe',200:'#bae6fd',300:'#7dd3fc',400:'#38bdf8',500:'#0ea5e9',600:'#0284c7',700:'#0369a1',800:'#075985',900:'#0c4a6e'} }
+}}};
+</script>
+<style>
+  html,body{height:100%}
+  body{font-family:'Inter',sans-serif;-webkit-font-smoothing:antialiased}
+  ::-webkit-scrollbar{width:6px;height:6px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:#475569;border-radius:4px}
+  @keyframes dash{to{stroke-dashoffset:-60}}
+  .flow-line{stroke-dasharray:8 6;animation:dash 1.6s linear infinite}
+  .flow-line.paused{animation:none;opacity:.3}
+  @keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:.35}}
+  .pulse-dot{animation:pulse-dot 1.8s infinite}
+  input[type=range]{-webkit-appearance:none;appearance:none;height:6px;border-radius:999px;outline:none}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:#0284c7;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.25);cursor:pointer;transition:transform .12s}
+  input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.15)}
+  .nav-item.active{background:linear-gradient(90deg,rgba(14,165,233,.25),rgba(14,165,233,.05));border-left:2px solid #38bdf8;color:#fff}
+  .glass{backdrop-filter:blur(12px);background:rgba(15,23,42,.72);border:1px solid rgba(255,255,255,.08)}
+  .toast{animation:slideIn .25s ease-out}
+  @keyframes slideIn{from{transform:translateX(120%);opacity:0}to{transform:translateX(0);opacity:1}}
+  .uplot .u-axis{font-size:10px}.uplot .u-legend{font-size:11px}
+  .alarm-banner{animation:bannerPulse 1.4s ease-in-out infinite}
+  @keyframes bannerPulse{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.4)}50%{box-shadow:0 0 0 8px rgba(239,68,68,0)}}
+  .status-dot{display:inline-block;width:8px;height:8px;border-radius:50%}
+  .tabular{font-variant-numeric:tabular-nums}
+  .mode-toggle button.active{background:#0284c7;color:#fff}
+  .p-chip{font-size:9px;font-weight:800;padding:1px 5px;border-radius:4px}
+</style>
+</head>
+<body class="h-screen flex overflow-hidden bg-slate-100 dark:bg-slate-950 text-slate-800 dark:text-slate-200">
+
+<aside class="w-[260px] bg-slate-900 text-slate-300 flex flex-col shrink-0 z-20 border-r border-slate-800">
+  <div class="px-5 py-4 border-b border-slate-800 flex items-center gap-3">
+    <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-cyan-500 flex items-center justify-center shadow-lg shadow-brand-500/30">
+      <i class="fa-solid fa-water text-white"></i>
+    </div>
+    <div class="flex-1">
+      <h1 class="text-sm font-bold text-white">Francis UTS</h1>
+      <p class="text-[10px] text-slate-400">SCADA · v2.0</p>
+    </div>
+  </div>
+  <nav class="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
+    <p class="px-3 pt-2 pb-1 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Operación</p>
+    <button data-nav="monitor" onclick="switchView('monitor')" class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:bg-slate-800 hover:text-white border-l-2 border-transparent"><i class="fa-solid fa-gauge-high w-5 text-center text-brand-400"></i>Monitor</button>
+    <button data-nav="3d" onclick="switchView('3d')" class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:bg-slate-800 hover:text-white border-l-2 border-transparent"><i class="fa-solid fa-cube w-5 text-center text-brand-400"></i>Vista 3D</button>
+    <button data-nav="2d" onclick="switchView('2d')" class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:bg-slate-800 hover:text-white border-l-2 border-transparent"><i class="fa-solid fa-diagram-project w-5 text-center text-brand-400"></i>P&amp;ID</button>
+    <button data-nav="hmi" onclick="switchView('hmi')" class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:bg-slate-800 hover:text-white border-l-2 border-transparent"><i class="fa-solid fa-sliders w-5 text-center text-brand-400"></i>HMI</button>
+    <p class="px-3 pt-4 pb-1 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Análisis</p>
+    <button data-nav="trends" onclick="switchView('trends')" class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:bg-slate-800 hover:text-white border-l-2 border-transparent"><i class="fa-solid fa-chart-line w-5 text-center text-brand-400"></i>Tendencias</button>
+    <button data-nav="hill" onclick="switchView('hill')" class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:bg-slate-800 hover:text-white border-l-2 border-transparent"><i class="fa-solid fa-mountain-sun w-5 text-center text-brand-400"></i>Hill chart</button>
+    <button data-nav="dim" onclick="switchView('dim')" class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:bg-slate-800 hover:text-white border-l-2 border-transparent"><i class="fa-solid fa-calculator w-5 text-center text-brand-400"></i>Dimensionamiento</button>
+    <button data-nav="alarms" onclick="switchView('alarms')" class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:bg-slate-800 hover:text-white border-l-2 border-transparent"><i class="fa-solid fa-bell w-5 text-center text-brand-400"></i>Alarmas<span id="alarm-count" class="ml-auto bg-slate-700 text-slate-300 text-[10px] font-bold px-1.5 rounded-full min-w-[20px] text-center">0</span></button>
+    <button data-nav="practices" onclick="switchView('practices')" class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:bg-slate-800 hover:text-white border-l-2 border-transparent"><i class="fa-solid fa-book-open w-5 text-center text-brand-400"></i>Prácticas</button>
+  </nav>
+  <div class="px-3 py-3 border-t border-slate-800 text-[11px] space-y-1.5">
+    <div class="flex items-center justify-between text-slate-400">
+      <div class="flex items-center gap-2"><span class="status-dot bg-emerald-500 pulse-dot"></span><span>Conectado</span></div>
+      <span class="font-mono text-slate-500">30 Hz</span>
+    </div>
+    <div class="text-[10px] text-slate-500 font-mono flex justify-between"><span>Uptime</span><span id="uptime-label">00:00:00</span></div>
+  </div>
+</aside>
+
+<div class="flex-1 flex flex-col min-w-0">
+  <header class="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-5 py-3 flex items-center justify-between shrink-0 z-10">
+    <div class="flex items-center gap-4 min-w-0">
+      <div class="min-w-0">
+        <h2 id="view-title" class="text-lg font-bold text-slate-900 dark:text-white tracking-tight truncate">Monitor</h2>
+        <p class="text-xs text-slate-500 truncate">Turbina Francis · Unidad 1</p>
+      </div>
+      <span id="plant-badge" class="shrink-0 hidden md:inline-flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 text-[11px] font-bold px-2.5 py-1 rounded-full">
+        <span class="status-dot bg-slate-400"></span> Detenida
+      </span>
+      <span id="mode-badge" class="shrink-0 hidden md:inline-flex items-center gap-1.5 bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-900 text-[11px] font-bold px-2.5 py-1 rounded-full">
+        <i class="fa-solid fa-hand"></i> Manual
+      </span>
+    </div>
+    <div class="flex items-center gap-2">
+      <div class="hidden lg:flex items-center gap-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs">
+        <i class="fa-solid fa-bolt text-amber-500"></i><span class="font-mono font-semibold tabular" id="top-rpm">0.0</span><span class="text-slate-400">rpm</span>
+      </div>
+      <div class="hidden lg:flex items-center gap-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs">
+        <i class="fa-solid fa-plug text-emerald-500"></i><span class="font-mono font-semibold tabular" id="top-power">0.00</span><span class="text-slate-400">W</span>
+      </div>
+      <button onclick="toggleSound()" id="btn-sound" title="Sonido de alarmas" class="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 w-9 h-9 rounded-lg border border-slate-300 dark:border-slate-700 flex items-center justify-center"><i class="fa-solid fa-volume-low"></i></button>
+      <button onclick="toggleTheme()" title="Tema" class="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 w-9 h-9 rounded-lg border border-slate-300 dark:border-slate-700 flex items-center justify-center"><i id="theme-icon" class="fa-solid fa-sun"></i></button>
+      <button onclick="exportCSV()" class="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 flex items-center gap-1.5"><i class="fa-solid fa-download"></i><span class="hidden sm:inline">CSV</span></button>
+      <button onclick="toggleTrip()" id="btn-trip" class="bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold px-3 py-2 rounded-lg shadow-sm flex items-center gap-1.5"><i class="fa-solid fa-triangle-exclamation"></i><span class="hidden sm:inline">Disparo</span></button>
+    </div>
+  </header>
+
+  <div id="alarm-banner" class="hidden shrink-0 bg-rose-600 text-white px-5 py-2 flex items-center gap-3 text-sm alarm-banner">
+    <i class="fa-solid fa-triangle-exclamation"></i>
+    <span id="alarm-banner-msg" class="font-semibold flex-1">—</span>
+    <button onclick="acknowledgeAllAlarms()" class="bg-white/20 hover:bg-white/30 text-white text-xs font-bold px-3 py-1 rounded-md">Reconocer</button>
+  </div>
+
+  <main class="flex-1 overflow-y-auto p-4 sm:p-5 space-y-5">
+
+    <section class="grid grid-cols-2 lg:grid-cols-5 gap-3">
+      <div class="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+        <p class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Velocidad</p>
+        <p class="text-2xl font-extrabold font-mono text-slate-900 dark:text-white mt-1 tabular" id="kpi-rpm">0.0 <span class="text-sm font-sans text-slate-400">rpm</span></p>
+        <div class="mt-2 w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden"><div id="bar-rpm" class="bg-brand-500 h-full transition-all" style="width:0%"></div></div>
+        <p class="text-[10px] text-slate-400 mt-1.5 font-mono">n* <span id="kpi-nref">1300</span> rpm</p>
+      </div>
+      <div class="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+        <p class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">P. eléctrica</p>
+        <p class="text-2xl font-extrabold font-mono text-amber-600 mt-1 tabular" id="kpi-power">0.00 <span class="text-sm font-sans text-slate-400">W</span></p>
+        <p class="text-[11px] text-slate-400 mt-2">Hidráulica: <span id="kpi-ph" class="font-semibold font-mono">0.00 W</span></p>
+      </div>
+      <div class="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+        <p class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Caudal</p>
+        <p class="text-2xl font-extrabold font-mono text-cyan-700 dark:text-cyan-400 mt-1 tabular" id="kpi-flow">0.00 <span class="text-sm font-sans text-slate-400">L/min</span></p>
+        <p class="text-[11px] text-slate-400 mt-2">Apertura: <span id="kpi-opening" class="font-semibold font-mono">0 %</span></p>
+      </div>
+      <div class="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+        <p class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Eficiencia</p>
+        <p class="text-2xl font-extrabold font-mono text-emerald-600 mt-1 tabular" id="kpi-eta">0.0 <span class="text-sm font-sans text-slate-400">%</span></p>
+        <p class="text-[11px] text-slate-400 mt-2">σ Thoma: <span id="kpi-sigma" class="font-semibold font-mono">—</span></p>
+      </div>
+      <div class="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+        <p class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Estado</p>
+        <p class="text-lg font-extrabold text-slate-900 dark:text-white mt-1" id="kpi-state">Detenida</p>
+        <p class="text-[11px] text-slate-400 mt-2">Gobernador: <span id="kpi-mode" class="font-semibold">Manual</span></p>
+      </div>
+    </section>
+
+    <div id="view-container" class="relative min-h-[480px]">
+
+      <!-- MONITOR -->
+      <div id="view-monitor" class="view-panel space-y-4">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div class="lg:col-span-2 bg-slate-900 rounded-2xl overflow-hidden relative border border-slate-800 shadow-md">
+            <div id="monitor-3d" class="w-full h-[320px]"></div>
+            <div class="absolute top-3 left-3 glass text-white px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2"><i class="fa-solid fa-cube text-brand-400"></i>Vista 3D en vivo</div>
+          </div>
+          <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-5 space-y-3">
+            <div class="flex items-center justify-between">
+              <h3 class="text-sm font-bold flex items-center gap-2"><i class="fa-solid fa-sliders text-brand-600"></i>Control</h3>
+              <div class="mode-toggle flex bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5">
+                <button onclick="setMode('manual')" id="btn-mode-manual" class="active text-[10px] font-bold px-2.5 py-1 rounded-md transition">MANUAL</button>
+                <button onclick="setMode('auto')" id="btn-mode-auto" class="text-[10px] font-bold px-2.5 py-1 rounded-md transition">AUTO</button>
+              </div>
+            </div>
+            <div>
+              <div class="flex justify-between text-xs font-semibold mb-1.5">
+                <span class="text-slate-600 dark:text-slate-400">Consigna apertura</span>
+                <span id="quick-a-val" class="text-brand-600 font-mono">0 %</span>
+              </div>
+              <input type="range" id="quick-a" min="0" max="100" value="0" oninput="setOpening(this.value)" class="w-full bg-slate-200 dark:bg-slate-700">
+            </div>
+            <div>
+              <div class="flex justify-between text-xs font-semibold mb-1.5">
+                <span class="text-slate-600 dark:text-slate-400">Consigna n*</span>
+                <span id="quick-n-val" class="text-amber-600 font-mono">1300 rpm</span>
+              </div>
+              <input type="range" id="quick-n" min="800" max="1800" step="10" value="1300" oninput="setSpeedRef(this.value)" class="w-full bg-slate-200 dark:bg-slate-700">
+            </div>
+            <div class="grid grid-cols-2 gap-2 pt-1">
+              <button onclick="startPlant()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2 rounded-lg flex items-center justify-center gap-1.5"><i class="fa-solid fa-play"></i>Arrancar</button>
+              <button onclick="stopPlant()" class="bg-slate-700 hover:bg-slate-800 text-white text-xs font-bold py-2 rounded-lg flex items-center justify-center gap-1.5"><i class="fa-solid fa-stop"></i>Parar</button>
+            </div>
+            <div class="border-t border-slate-100 dark:border-slate-800 pt-3 text-[11px] space-y-1">
+              <div class="flex justify-between"><span class="text-slate-500">Servo</span><span id="quick-servo" class="font-mono">0 %</span></div>
+              <div class="flex justify-between"><span class="text-slate-500">Error velocidad</span><span id="quick-error" class="font-mono">0.0 rpm</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div class="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800"><div class="flex justify-between items-center mb-2"><h4 class="text-xs font-bold">Velocidad (rpm)</h4><span class="text-[10px] text-slate-400 font-mono">30 Hz</span></div><div id="mini-rpm" class="h-32"></div></div>
+          <div class="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800"><div class="flex justify-between items-center mb-2"><h4 class="text-xs font-bold">Potencia eléctrica (W)</h4><span class="text-[10px] text-slate-400 font-mono">30 Hz</span></div><div id="mini-power" class="h-32"></div></div>
+        </div>
+      </div>
+
+      <!-- VISTA 3D -->
+      <div id="view-3d" class="view-panel hidden">
+        <div class="bg-slate-900 rounded-2xl overflow-hidden relative border border-slate-800 shadow-lg h-[600px]">
+          <div id="full-3d" class="w-full h-full"></div>
+          <div class="absolute top-4 left-4 glass p-4 rounded-xl text-white text-xs space-y-2.5 w-[220px]">
+            <p class="font-bold text-sm border-b border-white/10 pb-2 flex items-center gap-2"><i class="fa-solid fa-eye text-brand-400"></i>Capas</p>
+            <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="lay-casing" checked onchange="toggleLayer('casing',this.checked)" class="accent-brand-500"><span>Carcasa espiral</span></label>
+            <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="lay-vanes" checked onchange="toggleLayer('vanes',this.checked)" class="accent-brand-500"><span>Álabes guía</span></label>
+            <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="lay-particles" checked onchange="toggleLayer('particles',this.checked)" class="accent-brand-500"><span>Flujo de agua</span></label>
+            <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="lay-axes" checked onchange="toggleLayer('axes',this.checked)" class="accent-brand-500"><span>Ejes</span></label>
+            <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="lay-autorotate" checked onchange="toggleLayer('autorotate',this.checked)" class="accent-brand-500"><span>Auto-rotar</span></label>
+          </div>
+          <div class="absolute top-4 right-4 glass p-3 rounded-xl text-[11px] text-white space-y-1 min-w-[150px]">
+            <p class="font-bold border-b border-white/10 pb-1 mb-1">Telemetría</p>
+            <div class="flex justify-between"><span class="text-slate-400">Rodete</span><span id="3d-rpm" class="font-mono">0 rpm</span></div>
+            <div class="flex justify-between"><span class="text-slate-400">Servo</span><span id="3d-servo" class="font-mono">0 %</span></div>
+            <div class="flex justify-between"><span class="text-slate-400">Flujo</span><span id="3d-flow" class="font-mono">0 L/min</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- P&ID -->
+      <div id="view-2d" class="view-panel hidden">
+        <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-5">
+          <div class="flex justify-between items-center mb-4 flex-wrap gap-2">
+            <div><h3 class="text-lg font-bold">P&amp;ID — Unidad Francis 1</h3><p class="text-xs text-slate-500">Instrumentación ISA · símbolos S5.1</p></div>
+            <div class="flex gap-2 flex-wrap">
+              <span class="bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-400 text-xs font-semibold px-3 py-1.5 rounded-lg border border-blue-200 dark:border-blue-900"><i class="fa-solid fa-water"></i> <span id="2d-flow">0 L/min</span></span>
+              <span class="bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 text-xs font-semibold px-3 py-1.5 rounded-lg border border-emerald-200 dark:border-emerald-900"><i class="fa-solid fa-plug"></i> <span id="2d-grid">50.0 Hz</span></span>
+            </div>
+          </div>
+          <div class="bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 p-3 overflow-x-auto">
+            <svg viewBox="0 0 1100 460" class="w-full max-w-[1000px] min-w-[760px]">
+              <defs>
+                <linearGradient id="waterGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7dd3fc" stop-opacity=".7"/><stop offset="1" stop-color="#0284c7" stop-opacity=".9"/></linearGradient>
+                <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#64748b"/></marker>
+              </defs>
+              <rect x="30" y="60" width="150" height="170" rx="10" fill="#e0f2fe" stroke="#0284c7" stroke-width="2.5"/>
+              <path d="M 30,120 Q 65,110 100,120 T 180,120 L 180,230 L 30,230 Z" fill="url(#waterGrad)"/>
+              <text x="105" y="90" text-anchor="middle" font-weight="700" fill="#0369a1" font-size="13">Embalse</text>
+              <text x="105" y="150" text-anchor="middle" font-weight="800" fill="#075985" font-size="18" id="svg-head">3.06 m</text>
+              <text x="105" y="170" text-anchor="middle" font-size="10" fill="#0c4a6e">H neta</text>
+
+              <path d="M 180,175 L 350,255" stroke="#94a3b8" stroke-width="20" stroke-linecap="round"/>
+              <path d="M 180,175 L 350,255" stroke="#0ea5e9" stroke-width="8" class="flow-line" id="flow-line-1"/>
+
+              <circle cx="265" cy="215" r="14" fill="#fff" stroke="#ef4444" stroke-width="2.5"/>
+              <path d="M 257,207 L 273,223 M 257,223 L 273,207" stroke="#ef4444" stroke-width="2.5"/>
+              <text x="265" y="245" text-anchor="middle" font-size="9" fill="#64748b" font-weight="600">V-101</text>
+
+              <circle cx="420" cy="285" r="65" fill="#f1f5f9" stroke="#0284c7" stroke-width="3"/>
+              <circle cx="420" cy="285" r="38" fill="#bae6fd" stroke="#0369a1" stroke-width="2.5"/>
+              <g id="svg-runner" transform="rotate(0 420 285)">
+                <line x1="420" y1="255" x2="420" y2="315" stroke="#075985" stroke-width="4"/>
+                <line x1="390" y1="285" x2="450" y2="285" stroke="#075985" stroke-width="4"/>
+                <circle cx="420" cy="285" r="10" fill="#0369a1"/>
+              </g>
+              <text x="420" y="370" text-anchor="middle" font-weight="700" font-size="12" fill="#1e293b">Rodete</text>
+              <text x="420" y="387" text-anchor="middle" font-weight="800" fill="#0284c7" font-size="13" id="svg-rpm">0 RPM</text>
+
+              <rect x="485" y="279" width="100" height="12" fill="#64748b" rx="3"/>
+              <text x="535" y="270" text-anchor="middle" font-size="10" fill="#475569" font-weight="600">Eje</text>
+
+              <rect x="585" y="235" width="120" height="100" rx="14" fill="#fef3c7" stroke="#d97706" stroke-width="2.5"/>
+              <circle cx="645" cy="285" r="30" fill="#fde047" stroke="#b45309" stroke-width="2"/>
+              <text x="645" y="291" text-anchor="middle" font-weight="800" fill="#78350f" font-size="16">G</text>
+              <text x="645" y="357" text-anchor="middle" font-weight="700" font-size="12" fill="#1e293b">Generador</text>
+              <text x="645" y="374" text-anchor="middle" font-weight="800" fill="#d97706" font-size="13" id="svg-power">0.00 W</text>
+
+              <path d="M 705,285 L 790,285" stroke="#d97706" stroke-width="4"/>
+              <rect x="790" y="265" width="40" height="40" rx="6" fill="#fff" stroke="#16a34a" stroke-width="2.5" id="svg-breaker"/>
+              <path d="M 800,285 L 820,285" stroke="#16a34a" stroke-width="3" id="svg-breaker-line"/>
+              <text x="810" y="322" text-anchor="middle" font-size="10" fill="#16a34a" font-weight="700">52-1</text>
+
+              <rect x="850" y="245" width="70" height="80" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2.5"/>
+              <text x="885" y="280" text-anchor="middle" font-weight="700" fill="#15803d" font-size="12">Red</text>
+              <text x="885" y="298" text-anchor="middle" font-weight="700" fill="#15803d" font-size="12">Carga</text>
+
+              <!-- Instrumentación -->
+              <g font-size="9" fill="#64748b" font-weight="700">
+                <circle cx="220" cy="200" r="11" fill="#fff" stroke="#0ea5e9" stroke-width="1.5"/><text x="220" y="204" text-anchor="middle" fill="#0ea5e9">FT</text>
+                <circle cx="100" cy="255" r="11" fill="#fff" stroke="#0ea5e9" stroke-width="1.5"/><text x="100" y="259" text-anchor="middle" fill="#0ea5e9">PT</text>
+                <circle cx="420" cy="200" r="11" fill="#fff" stroke="#0ea5e9" stroke-width="1.5"/><text x="420" y="204" text-anchor="middle" fill="#0ea5e9">PI</text>
+                <circle cx="645" cy="220" r="11" fill="#fff" stroke="#0ea5e9" stroke-width="1.5"/><text x="645" y="224" text-anchor="middle" fill="#0ea5e9">JT</text>
+                <circle cx="645" cy="380" r="11" fill="#fff" stroke="#ef4444" stroke-width="1.5"/><text x="645" y="384" text-anchor="middle" fill="#ef4444">VT</text>
+                <circle cx="885" cy="235" r="11" fill="#fff" stroke="#16a34a" stroke-width="1.5"/><text x="885" y="239" text-anchor="middle" fill="#16a34a">kW</text>
+              </g>
+
+              <g transform="translate(30, 410)" font-size="10" fill="#64748b">
+                <text x="0" y="0" font-weight="700" fill="#334155">Leyenda:</text>
+                <rect x="60" y="-7" width="12" height="8" rx="2" fill="#0ea5e9"/><text x="77" y="0">Agua</text>
+                <rect x="120" y="-7" width="12" height="8" rx="2" fill="#d97706"/><text x="137" y="0">Eléctrico</text>
+                <rect x="200" y="-7" width="12" height="8" rx="2" fill="#16a34a"/><text x="217" y="0">Acople</text>
+                <circle cx="280" cy="-3" r="6" fill="#fff" stroke="#0ea5e9"/><text x="292" y="0">Instrumento</text>
+              </g>
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <!-- HMI -->
+      <div id="view-hmi" class="view-panel hidden space-y-4">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div class="lg:col-span-2 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 space-y-5">
+            <h3 class="text-sm font-bold flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-2.5"><i class="fa-solid fa-water text-brand-600"></i>Controles hidráulicos</h3>
+            <div>
+              <div class="flex justify-between text-xs font-semibold mb-2"><span class="text-slate-600 dark:text-slate-400">Apertura distribuidor (<span class="font-mono text-slate-400">a</span>)</span><span id="hmi-a-val" class="text-brand-600 font-mono">0 %</span></div>
+              <input type="range" id="hmi-a" min="0" max="100" value="0" oninput="setOpening(this.value)" class="w-full bg-slate-200 dark:bg-slate-700">
+            </div>
+            <div>
+              <div class="flex justify-between text-xs font-semibold mb-2"><span class="text-slate-600 dark:text-slate-400">Altura neta (<span class="font-mono text-slate-400">H₀</span>)</span><span id="hmi-h-val" class="text-brand-600 font-mono">3.058 m</span></div>
+              <input type="range" id="hmi-h" min="1.0" max="10.0" step="0.05" value="3.058" oninput="setHead(this.value)" class="w-full bg-slate-200 dark:bg-slate-700">
+            </div>
+            <div class="border-t border-slate-100 dark:border-slate-800 pt-4 grid grid-cols-3 gap-3">
+              <div class="bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-800 p-3"><p class="text-[10px] font-bold text-slate-500 uppercase">Servo real</p><p id="hmi-servo" class="font-mono font-bold text-lg text-brand-600 tabular">0.0 %</p></div>
+              <div class="bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-800 p-3"><p class="text-[10px] font-bold text-slate-500 uppercase">Error n</p><p id="hmi-error" class="font-mono font-bold text-lg text-amber-600 tabular">0.0</p></div>
+              <div class="bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-800 p-3"><p class="text-[10px] font-bold text-slate-500 uppercase">Salida PID</p><p id="hmi-out" class="font-mono font-bold text-lg text-slate-700 dark:text-slate-200 tabular">0.0</p></div>
+            </div>
+          </div>
+          <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 space-y-4">
+            <h3 class="text-sm font-bold flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-2.5"><i class="fa-solid fa-sliders text-amber-500"></i>Gobernador PID</h3>
+            <div>
+              <div class="flex justify-between text-xs font-semibold mb-1.5"><span class="text-slate-600 dark:text-slate-400">Consigna n*</span><span id="hmi-n-val" class="text-amber-600 font-mono">1300 rpm</span></div>
+              <input type="range" id="hmi-n" min="800" max="1800" step="10" value="1300" oninput="setSpeedRef(this.value)" class="w-full bg-slate-200 dark:bg-slate-700">
+            </div>
+            <div class="grid grid-cols-3 gap-2">
+              <div class="bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-800 p-2.5 text-center"><label class="text-[10px] font-bold text-slate-500 uppercase block mb-1">Kp</label><input type="number" id="pid-kp" value="2.5" step="0.1" onchange="setPID('Kp',this.value)" class="w-full text-center font-mono font-bold text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg py-1 outline-none"></div>
+              <div class="bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-800 p-2.5 text-center"><label class="text-[10px] font-bold text-slate-500 uppercase block mb-1">Ti (s)</label><input type="number" id="pid-ti" value="1.2" step="0.1" onchange="setPID('Ti',this.value)" class="w-full text-center font-mono font-bold text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg py-1 outline-none"></div>
+              <div class="bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-800 p-2.5 text-center"><label class="text-[10px] font-bold text-slate-500 uppercase block mb-1">Droop %</label><input type="number" id="pid-droop" value="4.0" step="0.5" onchange="setPID('droop',this.value)" class="w-full text-center font-mono font-bold text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg py-1 outline-none"></div>
+            </div>
+            <div class="bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-800 p-3 space-y-1.5">
+              <div class="flex justify-between text-[11px]"><span class="text-slate-500">P term</span><span id="pid-p" class="font-mono">0.00</span></div>
+              <div class="flex justify-between text-[11px]"><span class="text-slate-500">I term</span><span id="pid-i" class="font-mono">0.00</span></div>
+              <div class="flex justify-between text-[11px]"><span class="text-slate-500">Salida</span><span id="pid-out" class="font-mono text-brand-600 font-bold">0.00</span></div>
+            </div>
+            <div class="border-t border-slate-100 dark:border-slate-800 pt-3">
+              <p class="text-[10px] font-bold text-slate-500 uppercase mb-2">Sincronizador</p>
+              <div class="relative h-20 bg-slate-800 rounded-lg overflow-hidden">
+                <div class="absolute inset-0 flex items-center justify-center">
+                  <div class="w-16 h-16 rounded-full border-2 border-slate-600 relative">
+                    <div class="absolute inset-0 flex items-center justify-center text-[8px] text-slate-500">Δ</div>
+                    <div id="synchro-needle" class="absolute inset-0 origin-center" style="transform:rotate(0deg)"><div class="absolute left-1/2 top-1 w-0.5 h-5 -translate-x-1/2 bg-amber-400"></div></div>
+                  </div>
+                </div>
+                <div class="absolute bottom-1 left-2 text-[9px] text-slate-400 font-mono" id="synchro-df">Δf: +0.00 Hz</div>
+                <div class="absolute bottom-1 right-2 text-[9px] text-slate-400 font-mono" id="synchro-dp">Δφ: +0°</div>
+              </div>
+              <button onclick="attemptSync()" id="sync-btn" class="w-full mt-2 bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold py-2 rounded-lg">Sincronizar a red</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TENDENCIAS -->
+      <div id="view-trends" class="view-panel hidden space-y-4">
+        <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5">
+          <div class="flex justify-between items-center mb-3"><h3 class="text-sm font-bold">Velocidad vs. consigna</h3><span class="text-[10px] font-mono bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-md text-slate-500">uPlot · cursor activo</span></div>
+          <div id="main-rpm" class="h-64"></div>
+        </div>
+        <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5"><h3 class="text-sm font-bold mb-3">Potencia mecánica vs. eléctrica</h3><div id="main-power" class="h-64"></div></div>
+        <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5"><h3 class="text-sm font-bold mb-3">Caudal y apertura</h3><div id="main-flow" class="h-48"></div></div>
+      </div>
+
+      <!-- HILL CHART -->
+      <div id="view-hill" class="view-panel hidden space-y-4">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div class="lg:col-span-2 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5">
+            <div class="flex justify-between items-center mb-3">
+              <div><h3 class="text-sm font-bold">Hill chart — mapa de eficiencia</h3><p class="text-xs text-slate-500">Eficiencia en función de Q/Qd y n/nd</p></div>
+              <span class="text-[10px] font-mono bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-md text-slate-500">Punto en vivo</span>
+            </div>
+            <div class="bg-slate-950 rounded-xl p-3 flex items-center justify-center">
+              <canvas id="hill-canvas" width="600" height="400" class="max-w-full rounded-lg"></canvas>
+            </div>
+            <div class="flex items-center gap-3 mt-3 text-[10px] text-slate-500">
+              <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded" style="background:#440154"></span>Baja</div>
+              <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded" style="background:#3b528b"></span>—</div>
+              <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded" style="background:#21918c"></span>Media</div>
+              <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded" style="background:#5ec962"></span>—</div>
+              <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded" style="background:#fde725"></span>Alta</div>
+            </div>
+          </div>
+          <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 space-y-3">
+            <h3 class="text-sm font-bold border-b border-slate-100 dark:border-slate-800 pb-2.5">Punto de operación</h3>
+            <div class="flex justify-between text-xs"><span class="text-slate-500">Q/Qd</span><span id="hill-qr" class="font-mono font-bold">0.00</span></div>
+            <div class="flex justify-between text-xs"><span class="text-slate-500">n/nd</span><span id="hill-nr" class="font-mono font-bold">0.00</span></div>
+            <div class="flex justify-between text-xs"><span class="text-slate-500">η actual</span><span id="hill-eta" class="font-mono font-bold text-emerald-600">0.0 %</span></div>
+            <div class="flex justify-between text-xs"><span class="text-slate-500">η BEP (máx)</span><span class="font-mono font-bold text-slate-600 dark:text-slate-300">62.0 %</span></div>
+            <div class="border-t border-slate-100 dark:border-slate-800 pt-3 space-y-2">
+              <p class="text-[10px] font-bold text-slate-500 uppercase">Zonas</p>
+              <div class="flex items-center gap-2 text-[11px]"><span class="w-2 h-2 rounded-full bg-rose-500"></span><span class="text-slate-600 dark:text-slate-400">Cavitación (σ bajo)</span></div>
+              <div class="flex items-center gap-2 text-[11px]"><span class="w-2 h-2 rounded-full bg-emerald-500"></span><span class="text-slate-600 dark:text-slate-400">BEP (óptimo)</span></div>
+              <div class="flex items-center gap-2 text-[11px]"><span class="w-2 h-2 rounded-full bg-amber-500"></span><span class="text-slate-600 dark:text-slate-400">Sobrevelocidad</span></div>
+            </div>
+            <div class="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 text-[11px] text-slate-500 leading-relaxed border border-slate-200 dark:border-slate-800">
+              <i class="fa-solid fa-circle-info text-brand-500 mr-1"></i>El punto blanco sigue la operación en vivo. Aléjalo del centro para observar caída de eficiencia.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- DIMENSIONAMIENTO -->
+      <div id="view-dim" class="view-panel hidden grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 space-y-4">
+          <h3 class="text-sm font-bold border-b border-slate-100 dark:border-slate-800 pb-2.5">Parámetros de diseño</h3>
+          <div><label class="text-xs font-semibold block mb-1.5">Altura neta H (m)</label><input type="number" id="calc-h" value="3.058" step="0.001" oninput="calculateSizing()" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2.5 text-sm font-mono font-bold outline-none"></div>
+          <div><label class="text-xs font-semibold block mb-1.5">Caudal Q (L/min)</label><input type="number" id="calc-q" value="24.44" step="0.01" oninput="calculateSizing()" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2.5 text-sm font-mono font-bold outline-none"></div>
+          <div><label class="text-xs font-semibold block mb-1.5">Eficiencia η (%)</label><input type="number" id="calc-eta" value="58.5" step="0.1" oninput="calculateSizing()" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2.5 text-sm font-mono font-bold outline-none"></div>
+          <div><label class="text-xs font-semibold block mb-1.5">Velocidad n (rpm)</label><input type="number" id="calc-n" value="1300" step="10" oninput="calculateSizing()" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2.5 text-sm font-mono font-bold outline-none"></div>
+        </div>
+        <div class="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-2xl shadow-lg p-5 flex flex-col">
+          <h3 class="text-sm font-bold text-slate-300 border-b border-slate-700 pb-2.5 mb-4">Resultados</h3>
+          <div class="space-y-3 flex-1">
+            <div class="flex justify-between border-b border-slate-700/50 pb-2"><span class="text-xs text-slate-400">P hidráulica</span><span id="res-ph" class="font-mono font-bold text-cyan-400 text-sm tabular">0 W</span></div>
+            <div class="flex justify-between border-b border-slate-700/50 pb-2"><span class="text-xs text-slate-400">P al eje</span><span id="res-pm" class="font-mono font-bold text-amber-400 text-sm tabular">0 W</span></div>
+            <div class="flex justify-between border-b border-slate-700/50 pb-2"><span class="text-xs text-slate-400">Velocidad específica</span><span id="res-ns" class="font-mono font-bold text-emerald-400 text-sm tabular">0</span></div>
+            <div class="flex justify-between border-b border-slate-700/50 pb-2"><span class="text-xs text-slate-400">Diámetro rodete</span><span id="res-d1" class="font-mono font-bold text-white text-sm tabular">0</span></div>
+            <div class="flex justify-between"><span class="text-xs text-slate-400">Clasificación</span><span id="res-class" class="font-mono font-bold text-brand-300 text-sm">—</span></div>
+          </div>
+          <div class="bg-white/5 border border-white/10 rounded-xl p-3 text-[11px] text-slate-400 mt-4"><i class="fa-solid fa-circle-info text-brand-400 mr-1"></i>n<sub>s</sub> &lt; 30 lenta · 30–80 normal · &gt; 80 rápida</div>
+        </div>
+      </div>
+
+      <!-- ALARMAS -->
+      <div id="view-alarms" class="view-panel hidden space-y-4">
+        <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5">
+          <div class="flex justify-between items-center flex-wrap gap-2 mb-4">
+            <h3 class="text-sm font-bold">Registro de alarmas — ISA 18.2</h3>
+            <div class="flex gap-2">
+              <select id="alarm-filter" onchange="renderAlarms()" class="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs font-semibold outline-none">
+                <option value="all">Todas</option><option value="critical">P1 · Crítica</option><option value="high">P2 · Alta</option><option value="warning">P3 · Media</option><option value="info">P4 · Info</option>
+              </select>
+              <button onclick="clearAlarms()" class="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700"><i class="fa-solid fa-trash mr-1"></i>Limpiar</button>
+            </div>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-xs">
+              <thead class="border-b border-slate-200 dark:border-slate-700 text-slate-500">
+                <tr><th class="text-left py-2 px-2 font-bold">Hora</th><th class="text-left py-2 px-2 font-bold">Prio</th><th class="text-left py-2 px-2 font-bold">Código</th><th class="text-left py-2 px-2 font-bold">Descripción</th><th class="text-left py-2 px-2 font-bold">Estado</th></tr>
+              </thead>
+              <tbody id="alarm-body" class="font-mono"><tr><td colspan="5" class="text-center py-6 text-slate-400">Sin eventos</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- PRÁCTICAS -->
+      <div id="view-practices" class="view-panel hidden space-y-4">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <button onclick="loadScenario('startup')" class="text-left bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 hover:border-brand-300 transition group">
+            <div class="w-12 h-12 bg-brand-50 dark:bg-brand-950 rounded-xl flex items-center justify-center text-brand-600 mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-play text-lg"></i></div>
+            <h4 class="font-bold text-sm mb-1">Arranque y sincronización</h4><p class="text-xs text-slate-500 mb-3">Rampa de apertura + acople a red.</p>
+            <span class="text-[11px] font-bold text-brand-600">Ejecutar <i class="fa-solid fa-arrow-right ml-1"></i></span>
+          </button>
+          <button onclick="loadScenario('rejection')" class="text-left bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 hover:border-rose-300 transition group">
+            <div class="w-12 h-12 bg-rose-50 dark:bg-rose-950 rounded-xl flex items-center justify-center text-rose-600 mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-bolt-lightning text-lg"></i></div>
+            <h4 class="font-bold text-sm mb-1">Rechazo de carga</h4><p class="text-xs text-slate-500 mb-3">Sobrevelocidad transitoria al abrir 52-1.</p>
+            <span class="text-[11px] font-bold text-rose-600">Ejecutar <i class="fa-solid fa-arrow-right ml-1"></i></span>
+          </button>
+          <button onclick="loadScenario('hill')" class="text-left bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 hover:border-emerald-300 transition group">
+            <div class="w-12 h-12 bg-emerald-50 dark:bg-emerald-950 rounded-xl flex items-center justify-center text-emerald-600 mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-mountain-sun text-lg"></i></div>
+            <h4 class="font-bold text-sm mb-1">Barrido hill chart</h4><p class="text-xs text-slate-500 mb-3">Recorrido por la curva de eficiencia.</p>
+            <span class="text-[11px] font-bold text-emerald-600">Ejecutar <i class="fa-solid fa-arrow-right ml-1"></i></span>
+          </button>
+        </div>
+        <div id="scenario-log" class="bg-slate-900 rounded-2xl border border-slate-800 p-4 hidden">
+          <div class="flex justify-between items-center mb-2"><h4 class="text-xs font-bold text-white">Registro del escenario</h4><button onclick="document.getElementById('scenario-log').classList.add('hidden')" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button></div>
+          <div id="scenario-log-body" class="font-mono text-[11px] text-slate-300 space-y-1 max-h-48 overflow-y-auto"></div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<div id="toasts" class="fixed top-4 right-4 z-50 space-y-2 w-80 pointer-events-none"></div>
+
+<script>
+'use strict';
+/* ============================================================
+   CONFIG
+============================================================ */
+const CFG = {
+  rho:1000, g:9.81, H_design:3.058, Q_design:24.44, n_design:1300,
+  eta_max:0.62, gate_opt:65,
+  J:0.008, bFriction:0.0006, genEta:0.95,
+  tau_servo:0.8, dt:1/30,
+  rpm_max:2200, rpm_min:0,
+  npsh_r:1.5, sigma_crit:0.35,
+};
+const ST = {STOPPED:'stopped',STARTING:'starting',ISLANDED:'islanded',SYNCING:'syncing',GRID:'grid',TRIPPED:'tripped'};
+const MODE = {MANUAL:'manual',AUTO:'auto'};
+
+const S = {
+  state:ST.STOPPED, mode:MODE.MANUAL,
+  gateTarget:0, gateActual:0,
+  head:CFG.H_design, nRef:CFG.n_design,
+  rpm:0, flow:0, pHyd:0, pMech:0, pElec:0, eta:0,
+  Kp:2.5, Ti:1.2, droop:4.0, integral:0, pTerm:0, iTerm:0, govOut:0,
+  gridFreq:50.0, gridPhase:0,
+  t:0, lastWall:0, accum:0, uptimeStart:Date.now(),
+  alarms:[], soundOn:true, soundCtx:null,
+  historian:{t:[],rpm:[],flow:[],pElec:[],gate:[],eta:[],head:[]},
+  _trackedFlags:{},
+};
+const HIST_MAX = 2000;
+
+/* ============================================================
+   UTILS & UI HELPERS
+============================================================ */
+const $=id=>document.getElementById(id);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const setText=(id,v)=>{const e=$(id);if(e)e.textContent=v;};
+function toast(msg,type='info',dur=3200){
+  const colors={info:'bg-brand-600',success:'bg-emerald-600',warning:'bg-amber-600',error:'bg-rose-600'};
+  const icons={info:'fa-circle-info',success:'fa-circle-check',warning:'fa-triangle-exclamation',error:'fa-circle-xmark'};
+  const el=document.createElement('div');
+  el.className=`toast ${colors[type]} text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-lg flex items-center gap-2.5 pointer-events-auto`;
+  el.innerHTML=`<i class="fa-solid ${icons[type]}"></i><span>${msg}</span>`;
+  $('toasts').appendChild(el);
+  setTimeout(()=>{el.style.transition='opacity .3s,transform .3s';el.style.opacity='0';el.style.transform='translateX(120%)';setTimeout(()=>el.remove(),300);},dur);
+}
+
+/* ============================================================
+   SOUND
+============================================================ */
+function toggleSound(){
+  S.soundOn = !S.soundOn;
+  $('btn-sound').innerHTML = S.soundOn ? '<i class="fa-solid fa-volume-low"></i>' : '<i class="fa-solid fa-volume-xmark"></i>';
+  if (S.soundOn) ensureAudio();
+  toast('Sonido ' + (S.soundOn ? 'activado' : 'silenciado'), 'info', 1500);
+}
+function ensureAudio(){
+  if (!S.soundCtx) {
+    try { S.soundCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){}
+  }
+  if (S.soundCtx && S.soundCtx.state === 'suspended') {
+    S.soundCtx.resume().catch(()=>{});
+  }
+}
+function beep(freq=880, dur=0.15, vol=0.05){
+  if (!S.soundOn) return;
+  ensureAudio();
+  if (!S.soundCtx || S.soundCtx.state !== 'running') return;
+  const o = S.soundCtx.createOscillator();
+  const g = S.soundCtx.createGain();
+  o.frequency.value = freq; o.type = 'square';
+  g.gain.setValueAtTime(vol, S.soundCtx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, S.soundCtx.currentTime + dur);
+  o.connect(g); g.connect(S.soundCtx.destination);
+  o.start(); o.stop(S.soundCtx.currentTime + dur);
+}
+// Unlock audio context on first user interaction
+window.addEventListener('click', () => { ensureAudio(); }, { once: true });
+
+/* ============================================================
+   ALARMS (ISA 18.2)
+============================================================ */
+const PRIO = {
+  critical:{label:'P1',cls:'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-400',beep:1100,banner:true},
+  high:    {label:'P2',cls:'bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-400',beep:880,banner:true},
+  warning: {label:'P3',cls:'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400',beep:660,banner:false},
+  info:    {label:'P4',cls:'bg-brand-100 text-brand-700 dark:bg-brand-950 dark:text-brand-400',beep:440,banner:false},
+};
+function raiseAlarm(sev, code, msg){
+  const key = code + '|' + msg;
+  if (S._trackedFlags[key]) return;
+  S._trackedFlags[key] = true;
+  const t = new Date();
+  const a = {time:t.toTimeString().slice(0,8), sev, code, msg, ack:false, id:Math.random()};
+  S.alarms.unshift(a);
+  if (S.alarms.length > 300) S.alarms.pop();
+  renderAlarms(); updateAlarmBadge();
+  if (PRIO[sev]) beep(PRIO[sev].beep, sev==='critical'?0.25:0.15);
+  if (PRIO[sev] && PRIO[sev].banner) {
+    $('alarm-banner').classList.remove('hidden');
+    setText('alarm-banner-msg', `[${code}] ${msg}`);
+  }
+  if (sev==='critical') toast(msg,'error',5000);
+  else if (sev==='high') toast(msg,'warning',4000);
+}
+function clearAlarmFlag(code, msg){
+  S._trackedFlags[code+'|'+msg] = false;
+}
+function acknowledgeAllAlarms(){
+  S.alarms.forEach(a=>a.ack=true);
+  $('alarm-banner').classList.add('hidden');
+  renderAlarms(); updateAlarmBadge();
+}
+function updateAlarmBadge(){
+  const unack = S.alarms.filter(a=>!a.ack).length;
+  const b=$('alarm-count');
+  b.textContent=unack;
+  b.className = unack>0 ? 'ml-auto bg-rose-500 text-white text-[10px] font-bold px-1.5 rounded-full min-w-[20px] text-center' : 'ml-auto bg-slate-700 text-slate-300 text-[10px] font-bold px-1.5 rounded-full min-w-[20px] text-center';
+}
+function renderAlarms(){
+  const f=$('alarm-filter').value; const b=$('alarm-body');
+  const list=S.alarms.filter(a=>f==='all'||a.sev===f);
+  if(!list.length){b.innerHTML='<tr><td colspan="5" class="text-center py-6 text-slate-400">Sin eventos</td></tr>';return;}
+  b.innerHTML=list.map(a=>{
+    const p=PRIO[a.sev]||PRIO.info;
+    return `<tr class="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+      <td class="py-2 px-2 tabular">${a.time}</td>
+      <td class="py-2 px-2"><span class="p-chip ${p.cls}">${p.label}</span></td>
+      <td class="py-2 px-2 font-bold">${a.code}</td>
+      <td class="py-2 px-2">${a.msg}</td>
+      <td class="py-2 px-2 ${a.ack?'text-emerald-600':'text-amber-600'}">${a.ack?'✓':'⏳'}</td>
+    </tr>`;
+  }).join('');
+}
+function clearAlarms(){
+  S.alarms=[]; S._trackedFlags={};
+  renderAlarms(); updateAlarmBadge(); $('alarm-banner').classList.add('hidden');
+}
+
+/* ============================================================
+   THEME
+============================================================ */
+function toggleTheme(){
+  const html=document.documentElement;
+  const dark=html.classList.toggle('dark');
+  localStorage.setItem('francis-theme',dark?'dark':'light');
+  $('theme-icon').className=dark?'fa-solid fa-sun':'fa-solid fa-moon';
+  Object.values(charts).forEach(c=>{try{c.destroy();}catch(e){}});
+  for(const k in charts) delete charts[k];
+  initMiniCharts();
+  if(currentView==='trends') initMainCharts();
+  if(currentView==='hill') drawHillChart();
+}
+
+/* ============================================================
+   NAVIGATION
+============================================================ */
+const VIEWS=['monitor','3d','2d','hmi','trends','hill','dim','alarms','practices'];
+const TITLES={monitor:'Monitor', '3d':'Vista 3D', '2d':'P&ID', hmi:'Panel HMI', trends:'Tendencias', hill:'Hill chart', dim:'Dimensionamiento', alarms:'Alarmas', practices:'Prácticas'};
+let currentView='monitor';
+function switchView(name){
+  if(!VIEWS.includes(name)) return;
+  VIEWS.forEach(v=>{const e=$('view-'+v);if(e)e.classList.toggle('hidden',v!==name);});
+  setText('view-title',TITLES[name]);
+  document.querySelectorAll('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.nav===name));
+  currentView=name;
+  if(name==='3d'&&!threeInit) init3D();
+  if(name==='trends'&&!mainChartsInit) initMainCharts();
+  if(name==='hill') drawHillChart();
+  if(name==='alarms') renderAlarms();
+}
+
+/* ============================================================
+   HILL CHART (efficiency model)
+============================================================ */
+function hillEfficiency(qr, nr){
+  const dq=qr-1, dn=nr-1;
+  const e = 1 - 0.35*dq*dq - 0.20*dn*dn - 0.08*dq*dn;
+  return clamp(e, 0.05, 1);
+}
+function drawHillChart(){
+  const canvas = $('hill-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  const xMin=0.3, xMax=1.5, yMin=0.0, yMax=1.4;
+  const img = ctx.createImageData(w, h);
+  for (let py=0; py<h; py++){
+    for (let px=0; px<w; px++){
+      const qr = xMin + (px/w)*(xMax-xMin);
+      const nr = yMax - (py/h)*(yMax-yMin);
+      let eta = hillEfficiency(qr, nr);
+      if (nr < 0.3) eta *= (nr / 0.3);
+      const [r,g,b] = viridis(eta);
+      const i = (py*w+px)*4;
+      img.data[i]=r; img.data[i+1]=g; img.data[i+2]=b; img.data[i+3]=255;
+    }
+  }
+  ctx.putImageData(img,0,0);
+  ctx.strokeStyle='rgba(255,255,255,0.35)'; ctx.lineWidth=1;
+  for (const lvl of [0.4,0.6,0.75,0.85,0.92]){
+    ctx.beginPath();
+    for (let px=0;px<w-2;px+=2){
+      for (let py=0;py<h-2;py+=2){
+        const qr=xMin+(px/w)*(xMax-xMin), nr=yMax-(py/h)*(yMax-yMin);
+        const qr2=xMin+((px+2)/w)*(xMax-xMin), nr2=yMax-((py+2)/h)*(yMax-yMin);
+        let e1=hillEfficiency(qr,nr), e2=hillEfficiency(qr2,nr2);
+        if(nr<0.3) e1*=(nr/0.3);
+        if(nr2<0.3) e2*=(nr2/0.3);
+        if ((e1<lvl)!==(e2<lvl)) ctx.rect(px,py,2,2);
+      }
+    }
+    ctx.stroke();
+  }
+  ctx.fillStyle='rgba(148,163,184,0.9)';
+  ctx.font='11px JetBrains Mono, monospace';
+  ctx.fillText('Q/Qd', w-40, h-6);
+  ctx.save(); ctx.translate(12, 20); ctx.rotate(-Math.PI/2); ctx.fillText('n/nd', 0, 0); ctx.restore();
+  
+  const qr = clamp(S.flow/CFG.Q_design, xMin, xMax);
+  const nr = clamp(S.rpm/CFG.n_design, yMin, yMax);
+  const px = ((qr-xMin)/(xMax-xMin))*w;
+  const py = ((yMax-nr)/(yMax-yMin))*h;
+  ctx.beginPath(); ctx.arc(px,py,9,0,2*Math.PI);
+  ctx.fillStyle='rgba(255,255,255,0.95)'; ctx.fill();
+  ctx.strokeStyle='#0ea5e9'; ctx.lineWidth=3; ctx.stroke();
+  ctx.beginPath(); ctx.arc(px,py,3,0,2*Math.PI); ctx.fillStyle='#0ea5e9'; ctx.fill();
+  
+  setText('hill-qr', (S.flow/CFG.Q_design).toFixed(2));
+  setText('hill-nr', (S.rpm/CFG.n_design).toFixed(2));
+  setText('hill-eta', S.eta.toFixed(1) + ' %');
+}
+function viridis(t){
+  t = clamp(t,0,1);
+  const stops=[[68,1,84],[59,82,139],[33,145,140],[94,201,98],[253,231,37]];
+  for (let i=0;i<stops.length-1;i++){
+    if (t <= (i+1)/(stops.length-1)){
+      const f = t - i/(stops.length-1);
+      const f2 = f * (stops.length-1);
+      const c1 = stops[i], c2 = stops[Math.min(i+1,stops.length-1)];
+      return [Math.round(c1[0]+(c2[0]-c1[0])*f2), Math.round(c1[1]+(c2[1]-c1[1])*f2), Math.round(c1[2]+(c2[2]-c1[2])*f2)];
+    }
+  }
+  return stops[stops.length-1];
+}
+
+/* ============================================================
+   PHYSICS
+============================================================ */
+function stepPhysics(dt){
+  if (S.state===ST.TRIPPED){
+    S.rpm = Math.max(0, S.rpm - 300*dt);
+    S.gateTarget = 0;
+    S.gateActual += (0 - S.gateActual) * Math.min(1, dt/CFG.tau_servo);
+    S.flow *= Math.max(0, 1 - 2*dt);
+    S.pMech = 0; S.pElec = 0; S.eta = 0;
+    S.pHyd = 0;
+    return;
+  }
+  if (S.state===ST.STOPPED){
+    S.rpm = Math.max(0, S.rpm - 200*dt);
+    S.gateActual += (0 - S.gateActual) * Math.min(1, dt/CFG.tau_servo);
+    S.flow *= Math.max(0, 1 - 2*dt);
+    S.pMech = 0; S.pElec = 0; S.eta = 0; S.pHyd = 0;
+    return;
+  }
+
+  if (S.mode===MODE.AUTO){
+    const err = S.nRef - S.rpm;
+    S.pTerm = S.Kp * err;
+    const govRaw = S.pTerm + S.iTerm;
+    if (Math.abs(govRaw) < 45){
+      S.integral += err * dt;
+      const iMax = 50 / Math.max(0.1, S.Kp);
+      S.integral = clamp(S.integral, -iMax, iMax);
+    }
+    S.iTerm = (S.Kp / Math.max(0.05, S.Ti)) * S.integral;
+    const droopTerm = (S.droop/100) * (S.nRef - CFG.n_design) * 0.5;
+    S.govOut = clamp(S.pTerm + S.iTerm + droopTerm, -50, 50);
+    S.gateTarget = clamp(CFG.gate_opt + S.govOut, 0, 100);
+  }
+
+  const servoRate = Math.min(1, dt / CFG.tau_servo);
+  S.gateActual += (S.gateTarget - S.gateActual) * servoRate;
+  S.gateActual = clamp(S.gateActual, 0, 100);
+
+  const qTarget = CFG.Q_design * (S.gateActual / CFG.gate_opt) * Math.sqrt(S.head / CFG.H_design);
+  S.flow += (qTarget - S.flow) * Math.min(1, dt * 3);
+
+  const qr = Math.max(0.05, S.flow / CFG.Q_design);
+  const nr = Math.max(0.1, S.rpm / CFG.n_design);
+  let etaFactor = hillEfficiency(qr, nr);
+  if (nr < 0.3) etaFactor *= (nr / 0.3);
+  const etaTarget = CFG.eta_max * etaFactor;
+  S.eta += (etaTarget - S.eta) * Math.min(1, dt * 4);
+  
+  if (S.rpm < 30) S.eta = 0;
+
+  const Q_m3s = S.flow / 60000;
+  S.pHyd = CFG.rho * CFG.g * Q_m3s * S.head;
+  S.pMech = S.pHyd * S.eta;
+
+  const omega = S.rpm * 2 * Math.PI / 60;
+  
+  const P_nom = CFG.rho * CFG.g * (CFG.Q_design/60000) * CFG.H_design * CFG.eta_max;
+  const omega_nom = CFG.n_design * 2 * Math.PI / 60;
+  const T_nom = P_nom / omega_nom;
+  
+  // Torque hidráulico fenomenológico
+  const T_hyd = T_nom * (S.gateActual / CFG.gate_opt) * Math.sqrt(S.head / CFG.H_design) * Math.max(0, 1.5 - (S.rpm / CFG.n_design));
+
+  if (S.state===ST.GRID){
+    const syncRpm = CFG.n_design * (S.gridFreq / 50);
+    S.rpm += (syncRpm - S.rpm) * Math.min(1, dt * 15) + (Math.random()-0.5)*0.15;
+    S.pElec = S.pMech * CFG.genEta;
+  } else {
+    let T_load = CFG.bFriction * omega;
+    if (S.state===ST.ISLANDED && S.rpm > 50) {
+      S.pElec = S.pMech * CFG.genEta;
+      T_load += S.pElec / Math.max(omega, 1);
+    } else {
+      S.pElec = 0;
+    }
+    const dOmega = (T_hyd - T_load) / CFG.J;
+    S.rpm = clamp(S.rpm + dOmega * 60/(2*Math.PI) * dt, CFG.rpm_min, CFG.rpm_max);
+  }
+
+  if (S.rpm > CFG.rpm_max*0.9 && S.state!==ST.GRID){
+    raiseAlarm('critical','OS-101','Sobrevelocidad: '+S.rpm.toFixed(0)+' rpm');
+  } else if (S.rpm < CFG.rpm_max*0.85){
+    clearAlarmFlag('OS-101','Sobrevelocidad: '+S.rpm.toFixed(0)+' rpm');
+  }
+  const sigma = (S.head > 0 && S.flow > 0) ? (10.33 - 0.2) / S.head : 999;
+  if (sigma < CFG.sigma_crit && S.gateActual > 5 && S.gateActual < 20){
+    raiseAlarm('warning','CAV-201','Cavitación probable (σ='+sigma.toFixed(2)+')');
+  }
+  if (S.state===ST.ISLANDED && S.flow > CFG.Q_design*0.9 && S.gateActual < 25){
+    raiseAlarm('high','WH-301','Golpe de ariete: cierre rápido con caudal alto');
+  }
+}
+
+/* ============================================================
+   UI UPDATE
+============================================================ */
+function updateUI(){
+  const kpi = (id,val,unit)=>$(id).innerHTML = val + ' <span class="text-sm font-sans font-medium text-slate-400">'+unit+'</span>';
+  kpi('kpi-rpm', S.rpm.toFixed(1),'rpm');
+  kpi('kpi-power', S.pElec.toFixed(2),'W');
+  kpi('kpi-flow', S.flow.toFixed(2),'L/min');
+  kpi('kpi-eta', S.eta.toFixed(1),'%');
+  setText('kpi-ph', S.pHyd.toFixed(2)+' W');
+  setText('kpi-opening', S.gateActual.toFixed(1)+' %');
+  setText('kpi-sigma', S.head>0 ? ((10.33-0.2)/S.head).toFixed(2) : '—');
+  setText('top-rpm', S.rpm.toFixed(1));
+  setText('top-power', S.pElec.toFixed(2));
+  setText('kpi-nref', S.nRef);
+  setText('kpi-state', ({stopped:'Detenida',starting:'Arrancando',islanded:'En isla',syncing:'Sincronizando',grid:'Acoplada',tripped:'Disparo'})[S.state]);
+  setText('kpi-mode', S.mode==='auto'?'Auto (PID)':'Manual');
+  $('bar-rpm').style.width = clamp(S.rpm/CFG.rpm_max*100,0,100)+'%';
+
+  if (S.mode === MODE.AUTO) {
+    const qa = $('quick-a'); if(qa) qa.value = S.gateActual;
+    const ha = $('hmi-a'); if(ha) ha.value = S.gateActual;
+    setText('quick-a-val', S.gateActual.toFixed(1) + ' %');
+    setText('hmi-a-val', S.gateActual.toFixed(1) + ' %');
+  }
+
+  setText('quick-servo', S.gateActual.toFixed(1)+' %');
+  setText('quick-error', (S.nRef-S.rpm).toFixed(1)+' rpm');
+  setText('hmi-servo', S.gateActual.toFixed(1)+' %');
+  setText('hmi-error', (S.nRef-S.rpm).toFixed(1));
+  setText('hmi-out', S.govOut.toFixed(1));
+  setText('pid-p', S.pTerm.toFixed(2));
+  setText('pid-i', S.iTerm.toFixed(2));
+  setText('pid-out', S.govOut.toFixed(2));
+
+  setText('svg-rpm', S.rpm.toFixed(0)+' RPM');
+  setText('svg-power', S.pElec.toFixed(2)+' W');
+  setText('svg-head', S.head.toFixed(2)+' m');
+  setText('2d-flow', S.flow.toFixed(1)+' L/min');
+  const fl = $('flow-line-1'); if (fl) fl.classList.toggle('paused', S.flow<1);
+  const runner = $('svg-runner');
+  if (runner) runner.setAttribute('transform', `rotate(${(S.rpm*6*S.t)%360} 420 285)`);
+
+  setText('3d-rpm', S.rpm.toFixed(0)+' rpm');
+  setText('3d-servo', S.gateActual.toFixed(1)+' %');
+  setText('3d-flow', S.flow.toFixed(1)+' L/min');
+
+  const df = (S.rpm - CFG.n_design*(S.gridFreq/50)) / 60;
+  setText('synchro-df', 'Δf: '+(df>=0?'+':'')+df.toFixed(2)+' Hz');
+  setText('synchro-dp', 'Δφ: '+(S.state===ST.SYNCING?'girando':'0°'));
+  const needle = $('synchro-needle');
+  if (needle) needle.style.transform = `rotate(${(S.t*360*(df*2+0.5))%360}deg)`;
+}
+
+/* ============================================================
+   CONTROLS
+============================================================ */
+function setOpening(v){
+  if (S.mode===MODE.AUTO){ toast('Cambia a MANUAL para controlar','warning',1500); return; }
+  S.gateTarget = clamp(parseFloat(v),0,100);
+  const qa=$('quick-a'), ha=$('hmi-a');
+  if(qa) qa.value=v; if(ha) ha.value=v;
+  setText('quick-a-val', S.gateTarget.toFixed(1)+' %');
+  setText('hmi-a-val', S.gateTarget.toFixed(1)+' %');
+}
+function setSpeedRef(v){
+  S.nRef = clamp(parseFloat(v),800,1800);
+  const qn=$('quick-n'), hn=$('hmi-n');
+  if(qn) qn.value=v; if(hn) hn.value=v;
+  setText('quick-n-val', Math.round(S.nRef)+' rpm');
+  setText('hmi-n-val', Math.round(S.nRef)+' rpm');
+}
+function setHead(v){
+  S.head = clamp(parseFloat(v),0.5,20);
+  setText('hmi-h-val', S.head.toFixed(3)+' m');
+}
+function setPID(which, val){
+  const v=parseFloat(val); if(isNaN(v)) return;
+  if(which==='Kp') S.Kp=v;
+  else if(which==='Ti') S.Ti=Math.max(0.05,v);
+  else if(which==='droop') S.droop=clamp(v,0,15);
+  toast(`PID ${which} = ${v}`,'info',1500);
+  localStorage.setItem('francis-pid',JSON.stringify({Kp:S.Kp,Ti:S.Ti,droop:S.droop}));
+}
+function setMode(m){
+  S.mode=m;
+  $('btn-mode-manual').classList.toggle('active',m==='manual');
+  $('btn-mode-auto').classList.toggle('active',m==='auto');
+  const badge=$('mode-badge');
+  if (m==='auto'){
+    badge.className='shrink-0 hidden md:inline-flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900 text-[11px] font-bold px-2.5 py-1 rounded-full';
+    badge.innerHTML='<i class="fa-solid fa-robot"></i> Auto';
+    S.integral = 0; S.iTerm = 0;
+  } else {
+    badge.className='shrink-0 hidden md:inline-flex items-center gap-1.5 bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-900 text-[11px] font-bold px-2.5 py-1 rounded-full';
+    badge.innerHTML='<i class="fa-solid fa-hand"></i> Manual';
+  }
+  toast('Modo '+(m==='auto'?'automático':'manual'),'info',1500);
+}
+function startPlant(){
+  if (S.state===ST.TRIPPED){ toast('Rearme requerido','warning'); return; }
+  if (S.state!==ST.STOPPED){ toast('Ya está en marcha','info'); return; }
+  S.state=ST.STARTING;
+  setStateBadge();
+  raiseAlarm('info','EV-001','Arranque iniciado');
+  toast('Arrancando...','success');
+  setTimeout(()=>{ if(S.state===ST.STARTING){S.state=ST.ISLANDED; setStateBadge();} }, 3000);
+}
+function stopPlant(){
+  if (S.state===ST.STOPPED) return;
+  S.state=ST.STOPPED;
+  S.gateTarget=0; S.integral=0; S.iTerm=0;
+  setStateBadge();
+  raiseAlarm('info','EV-002','Parada normal');
+  toast('Detenida','info');
+}
+function toggleTrip(){
+  if (S.state!==ST.TRIPPED){
+    S.state=ST.TRIPPED; S.gateTarget=0; S.integral=0;
+    raiseAlarm('critical','TRIP-000','Disparo manual');
+    toast('¡DISPARO!','error',4000);
+    setStateBadge();
+  } else {
+    S.state=ST.STOPPED; S.gateTarget=0; S.gateActual=0; S.integral=0;
+    raiseAlarm('info','TRIP-001','Rearme');
+    toast('Rearmado','success');
+    setStateBadge();
+  }
+}
+function setStateBadge(){
+  const b=$('plant-badge');
+  const map={
+    stopped:{cls:'bg-slate-100 dark:bg-slate-800 text-slate-600 border-slate-200 dark:border-slate-700',html:'<span class="status-dot bg-slate-400"></span> Detenida'},
+    starting:{cls:'bg-amber-50 dark:bg-amber-950 text-amber-700 border-amber-200',html:'<span class="status-dot bg-amber-500 pulse-dot"></span> Arrancando'},
+    islanded:{cls:'bg-emerald-50 dark:bg-emerald-950 text-emerald-700 border-emerald-200',html:'<span class="status-dot bg-emerald-500 pulse-dot"></span> En isla'},
+    syncing:{cls:'bg-brand-50 dark:bg-brand-950 text-brand-700 border-brand-200',html:'<span class="status-dot bg-brand-500 pulse-dot"></span> Sincronizando'},
+    grid:{cls:'bg-brand-50 dark:bg-brand-950 text-brand-700 border-brand-200',html:'<span class="status-dot bg-brand-500 pulse-dot"></span> Acoplada a red'},
+    tripped:{cls:'bg-rose-50 dark:bg-rose-950 text-rose-700 border-rose-200',html:'<span class="status-dot bg-rose-500 pulse-dot"></span> Disparo'},
+  };
+  const c=map[S.state]||map.stopped;
+  b.className=`shrink-0 hidden md:inline-flex items-center gap-1.5 border text-[11px] font-bold px-2.5 py-1 rounded-full ${c.cls}`;
+  b.innerHTML=c.html;
+  const tb=$('btn-trip');
+  if (S.state===ST.TRIPPED){
+    tb.className='bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-2 rounded-lg shadow-sm flex items-center gap-1.5';
+    tb.innerHTML='<i class="fa-solid fa-rotate-left"></i><span class="hidden sm:inline">Rearmar</span>';
+  } else {
+    tb.className='bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold px-3 py-2 rounded-lg shadow-sm flex items-center gap-1.5';
+    tb.innerHTML='<i class="fa-solid fa-triangle-exclamation"></i><span class="hidden sm:inline">Disparo</span>';
+  }
+}
+function attemptSync(){
+  if (S.state!==ST.ISLANDED){ toast('Debe estar en isla','warning'); return; }
+  if (Math.abs(S.rpm - CFG.n_design) > 40){ toast('Velocidad fuera de rango (±40 rpm)','warning'); return; }
+  S.state=ST.SYNCING; setStateBadge();
+  toast('Sincronizando...','info');
+  setTimeout(()=>{
+    S.state=ST.GRID; setStateBadge();
+    raiseAlarm('info','SYNC-001','Acople a red exitoso');
+    toast('Acoplado','success');
+  }, 1500);
+}
+
+/* ============================================================
+   CSV EXPORT & SIZING
+============================================================ */
+function exportCSV() {
+  const rows = [['t_s','rpm','flow_Lmin','p_hyd_W','p_elec_W','eta_pct','gate_pct','head_m']];
+  const H = S.historian;
+  for (let i = 0; i < H.t.length; i++) {
+    rows.push([H.t[i].toFixed(2), H.rpm[i].toFixed(1), H.flow[i].toFixed(2), (H.pElec[i]/0.95).toFixed(2), H.pElec[i].toFixed(2), H.eta[i].toFixed(1), H.gate[i].toFixed(1), H.head[i].toFixed(3)]);
+  }
+  const csv = rows.map(r => r.join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `francis_${Date.now()}.csv`; a.click();
+  URL.revokeObjectURL(url);
+  toast('CSV exportado (' + (rows.length - 1) + ' muestras)', 'success');
+}
+function calculateSizing() {
+  const H = parseFloat($('calc-h').value) || CFG.H_design;
+  const Q_Lmin = parseFloat($('calc-q').value) || CFG.Q_design;
+  const eta = (parseFloat($('calc-eta').value) || 58.5) / 100;
+  const n = parseFloat($('calc-n').value) || CFG.n_design;
+  const Q_m3s = Q_Lmin / 60000;
+  const Ph = CFG.rho * CFG.g * Q_m3s * H;
+  const Pm = Ph * eta;
+  const ns = n * Math.sqrt(Pm) / Math.pow(H, 1.25);
+  const D1 = 84.5 * Math.sqrt(H) / n;
+  setText('res-ph', Ph.toFixed(2) + ' W');
+  setText('res-pm', Pm.toFixed(2) + ' W');
+  setText('res-ns', ns.toFixed(1) + ' rpm');
+  setText('res-d1', D1.toFixed(3) + ' m');
+  let cls = '—';
+  if (ns < 30) cls = 'Francis lenta';
+  else if (ns < 80) cls = 'Francis normal';
+  else if (ns < 150) cls = 'Francis rápida';
+  else cls = 'Fuera de rango Francis';
+  setText('res-class', cls);
+}
+
+/* ============================================================
+   CHARTS (uPlot)
+============================================================ */
+const charts={};
+let mainChartsInit=false, lastChartUpdate=0;
+function chartColors(){
+  const d=document.documentElement.classList.contains('dark');
+  return {text:d?'#94a3b8':'#64748b',grid:d?'#1e293b':'#f1f5f9'};
+}
+function makeChart(el, series, height, withCursor=false){
+  const c=chartColors();
+  const opts={
+    width:$(el).clientWidth, height,
+    scales:{x:{time:false}},
+    series:[{label:'t'}, ...series.map(s=>({label:s.label, stroke:s.color, width:s.width||2, fill:s.fill? s.color+'20':undefined, points:{show:false}}))],
+    axes:[
+      {stroke:c.text, grid:{stroke:c.grid}, font:'10px Inter'},
+      {stroke:c.text, grid:{stroke:c.grid}, font:'10px Inter'},
+    ],
+    legend:{show:true, font:'11px Inter'},
+    cursor: withCursor ? {show:true, drag:{x:true,y:false}, points:{show:false}} : {show:false},
+  };
+  const data=[[]]; series.forEach(()=>data.push([]));
+  return new uPlot(opts, data, $(el));
+}
+function initMiniCharts(){
+  if ($('mini-rpm') && !charts.miniRpm) charts.miniRpm=makeChart('mini-rpm',[{label:'RPM',color:'#0284c7',fill:true}],128);
+  if ($('mini-power') && !charts.miniPower) charts.miniPower=makeChart('mini-power',[{label:'W',color:'#d97706',fill:true}],128);
+}
+function initMainCharts(){
+  if (mainChartsInit) return;
+  if ($('main-rpm') && !charts.mainRpm) charts.mainRpm=makeChart('main-rpm',[{label:'RPM',color:'#0284c7',fill:true},{label:'Consigna',color:'#8b5cf6',width:1.5}],256,true);
+  if ($('main-power') && !charts.mainPower) charts.mainPower=makeChart('main-power',[{label:'P hidráulica',color:'#06b6d4',fill:true},{label:'P eléctrica',color:'#d97706',fill:true}],256,true);
+  if ($('main-flow') && !charts.mainFlow) charts.mainFlow=makeChart('main-flow',[{label:'Caudal (L/min)',color:'#0ea5e9'},{label:'Apertura (%)',color:'#f59e0b'}],192,true);
+  mainChartsInit=true;
+}
+function updateCharts(){
+  const now=performance.now()/1000;
+  if (now-lastChartUpdate < 1/15) return;
+  lastChartUpdate=now;
+  const H=S.historian;
+  H.t.push(S.t); H.rpm.push(S.rpm); H.flow.push(S.flow);
+  H.pElec.push(S.pElec); H.gate.push(S.gateActual); H.eta.push(S.eta); H.head.push(S.head);
+  if (H.t.length>HIST_MAX){
+    for (const k in H) H[k].shift();
+  }
+  const x=H.t;
+  try{
+    if (charts.miniRpm) charts.miniRpm.setData([x,H.rpm]);
+    if (charts.miniPower) charts.miniPower.setData([x,H.pElec]);
+    if (charts.mainRpm) charts.mainRpm.setData([x,H.rpm,H.rpm.map(()=>S.nRef)]);
+    if (charts.mainPower) charts.mainPower.setData([x,H.pElec.map(v=>v/0.95),H.pElec]);
+    if (charts.mainFlow) charts.mainFlow.setData([x,H.flow,H.gate]);
+  }catch(e){}
+}
+
+/* ============================================================
+   3D
+============================================================ */
+let monitorRenderer, monitorScene, monitorCamera, monitorRunner;
+let renderer, scene, camera, controls, runnerGroup, vanesGroup, casingMesh, particlesMesh, axesHelper;
+let threeInit=false;
+
+function buildRunner(){
+  const g=new THREE.Group();
+  const hub=new THREE.Mesh(new THREE.CylinderGeometry(0.45,0.55,0.9,24), new THREE.MeshStandardMaterial({color:0x475569,metalness:.85,roughness:.35}));
+  g.add(hub);
+  const N=13;
+  for(let i=0;i<N;i++){
+    const a=(i/N)*Math.PI*2;
+    const b=new THREE.Mesh(new THREE.BoxGeometry(0.06,0.75,0.85), new THREE.MeshStandardMaterial({color:0x0284c7,metalness:.7,roughness:.35,side:THREE.DoubleSide}));
+    b.position.set(Math.cos(a)*0.95,0.05,Math.sin(a)*0.95);
+    b.rotation.y=-a; b.rotation.x=0.35; g.add(b);
+  }
+  const crown=new THREE.Mesh(new THREE.TorusGeometry(1.15,0.09,12,48), new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.8,roughness:.3}));
+  crown.rotation.x=Math.PI/2; crown.position.y=0.5; g.add(crown);
+  const band=crown.clone(); band.position.y=-0.4; g.add(band);
+  return g;
+}
+function buildVanes(){
+  const g=new THREE.Group(); const N=12;
+  for(let i=0;i<N;i++){
+    const a=(i/N)*Math.PI*2;
+    const v=new THREE.Mesh(new THREE.BoxGeometry(0.05,0.45,0.35), new THREE.MeshStandardMaterial({color:0xfbbf24,metalness:.6,roughness:.4}));
+    v.position.set(Math.cos(a)*1.55,0,Math.sin(a)*1.55);
+    v.rotation.y=-a+0.5; g.add(v);
+  }
+  return g;
+}
+function initMonitor3D(){
+  const el=$('monitor-3d'); if(!el) return;
+  monitorScene=new THREE.Scene();
+  monitorScene.background=new THREE.Color(0x0f172a);
+  const w=el.clientWidth, h=320;
+  monitorCamera=new THREE.PerspectiveCamera(40,w/h,0.1,100);
+  monitorCamera.position.set(3,2.4,4); monitorCamera.lookAt(0,0,0);
+  monitorRenderer=new THREE.WebGLRenderer({antialias:true});
+  monitorRenderer.setSize(w,h); monitorRenderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  el.appendChild(monitorRenderer.domElement);
+  monitorScene.add(new THREE.AmbientLight(0xffffff,.55));
+  const dl=new THREE.DirectionalLight(0xffffff,1); dl.position.set(5,8,5); monitorScene.add(dl);
+  const pl=new THREE.PointLight(0x06b6d4,.7,15); pl.position.set(-3,2,-2); monitorScene.add(pl);
+  monitorRunner=buildRunner(); monitorScene.add(monitorRunner);
+  const casing=new THREE.Mesh(new THREE.TorusGeometry(1.7,0.14,12,48), new THREE.MeshStandardMaterial({color:0x38bdf8,transparent:true,opacity:.25,wireframe:true}));
+  casing.rotation.x=Math.PI/2; monitorScene.add(casing);
+  (function loop(){
+    requestAnimationFrame(loop);
+    monitorRunner.rotation.y += (S.rpm/60)*0.033;
+    monitorRenderer.render(monitorScene,monitorCamera);
+  })();
+}
+function init3D(){
+  const el=$('full-3d'); if(!el) return;
+  scene=new THREE.Scene();
+  scene.background=new THREE.Color(0x0f172a);
+  scene.fog=new THREE.Fog(0x0f172a,12,25);
+  const w=el.clientWidth, h=600;
+  camera=new THREE.PerspectiveCamera(45,w/h,0.1,100);
+  camera.position.set(4.5,3.5,6.5);
+  renderer=new THREE.WebGLRenderer({antialias:true});
+  renderer.setSize(w,h); renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  el.appendChild(renderer.domElement);
+  controls=new THREE.OrbitControls(camera,renderer.domElement);
+  controls.enableDamping=true; controls.dampingFactor=.06;
+  controls.autoRotate=true; controls.autoRotateSpeed=1.2;
+  controls.minDistance=3; controls.maxDistance=18;
+  scene.add(new THREE.AmbientLight(0xffffff,.5));
+  const dl=new THREE.DirectionalLight(0xffffff,1); dl.position.set(5,10,7); scene.add(dl);
+  const pl=new THREE.PointLight(0x06b6d4,.8,25); pl.position.set(-5,3,-5); scene.add(pl);
+  const pl2=new THREE.PointLight(0xfbbf24,.4,15); pl2.position.set(3,-2,4); scene.add(pl2);
+  casingMesh=new THREE.Mesh(new THREE.TorusGeometry(2.1,0.22,12,60), new THREE.MeshStandardMaterial({color:0x38bdf8,transparent:true,opacity:.22,wireframe:true}));
+  casingMesh.rotation.x=Math.PI/2; scene.add(casingMesh);
+  vanesGroup=buildVanes(); scene.add(vanesGroup);
+  runnerGroup=buildRunner(); scene.add(runnerGroup);
+  const draft=new THREE.Mesh(new THREE.ConeGeometry(1.3,1.6,20,1,true), new THREE.MeshStandardMaterial({color:0x64748b,transparent:true,opacity:.32,side:THREE.DoubleSide}));
+  draft.position.y=-1.3; scene.add(draft);
+  const grid=new THREE.GridHelper(14,28,0x1e293b,0x1e293b); grid.position.y=-2.4; scene.add(grid);
+  const N=500, pos=new Float32Array(N*3);
+  for (let i=0; i<N*3; i+=3) {
+    const a = Math.random()*Math.PI*2, r = 1.4+Math.random()*0.9;
+    pos[i]=Math.cos(a)*r; pos[i+1]=(Math.random()-.5)*1.4; pos[i+2]=Math.sin(a)*r;
+  }
+  const pGeo=new THREE.BufferGeometry();
+  pGeo.setAttribute('position', new THREE.BufferAttribute(pos,3));
+  particlesMesh=new THREE.Points(pGeo, new THREE.PointsMaterial({color:0x06b6d4,size:.07,transparent:true,opacity:.85}));
+  scene.add(particlesMesh);
+  axesHelper=new THREE.AxesHelper(2.8); scene.add(axesHelper);
+  threeInit=true;
+  (function loop(){
+    requestAnimationFrame(loop);
+    if (runnerGroup) runnerGroup.rotation.y += (S.rpm/60)*0.033;
+    if (particlesMesh) particlesMesh.rotation.y += 0.004 + S.flow * 0.0001;
+    if (vanesGroup) vanesGroup.rotation.y -= 0.002;
+    controls.update();
+    renderer.render(scene,camera);
+  })();
+}
+function toggleLayer(which, on){
+  if (which==='casing' && casingMesh) casingMesh.visible=on;
+  if (which==='vanes' && vanesGroup) vanesGroup.visible=on;
+  if (which==='particles' && particlesMesh) particlesMesh.visible=on;
+  if (which==='axes' && axesHelper) axesHelper.visible=on;
+  if (which==='autorotate' && controls) controls.autoRotate=on;
+}
+
+/* ============================================================
+   SCENARIOS
+============================================================ */
+function scenarioLog(msg){
+  const log=$('scenario-log'); if(!log) return;
+  log.classList.remove('hidden');
+  const body=$('scenario-log-body');
+  const t=new Date().toTimeString().slice(0,8);
+  body.insertAdjacentHTML('afterbegin', `<div><span class="text-brand-400">[${t}]</span> ${msg}</div>`);
+}
+function loadScenario(type){
+  if (type==='startup'){
+    if (S.state===ST.TRIPPED) toggleTrip();
+    scenarioLog('Inicio: apertura 15 %');
+    setMode('manual');
+    setOpening(15);
+    startPlant();
+    setTimeout(()=>{ scenarioLog('Rampa a 65 %'); setOpening(65); }, 2500);
+    setTimeout(()=>{ scenarioLog('Modo Auto n* = 1300 rpm'); setMode('auto'); setSpeedRef(1300); }, 5000);
+    setTimeout(()=>{ scenarioLog('Sincronizando...'); attemptSync(); }, 8000);
+  } else if (type==='rejection'){
+    scenarioLog('Rechazo de carga...');
+    if (S.state===ST.GRID || S.state===ST.ISLANDED) {
+      S.state=ST.ISLANDED;
+      setStateBadge();
+      raiseAlarm('critical','REJ-301','Rechazo de carga — sobrevelocidad esperada');
+    } else {
+      scenarioLog('Sistema no está en marcha');
+    }
+    setTimeout(()=>{ switchView('trends'); }, 2000);
+  } else if (type==='hill'){
+    scenarioLog('Barrido de apertura');
+    switchView('trends');
+    setMode('manual');
+    startPlant();
+    let i=20;
+    const iv=setInterval(()=>{
+      setOpening(i); scenarioLog(`Apertura = ${i} %`);
+      i+=10;
+      if(i>100){ clearInterval(iv); scenarioLog('Barrido completo'); }
+    }, 1200);
+  }
+}
+
+/* ============================================================
+   MAIN LOOP
+============================================================ */
+function loop(now){
+  requestAnimationFrame(loop);
+  if (!S.lastWall) S.lastWall=now;
+  const elapsed=(now-S.lastWall)/1000;
+  S.lastWall=now;
+  S.accum+=elapsed;
+  let steps=0;
+  while (S.accum >= CFG.dt && steps < 5){
+    stepPhysics(CFG.dt);
+    S.t += CFG.dt;
+    S.accum -= CFG.dt;
+    steps++;
+  }
+  updateUI();
+  updateCharts();
+  if (currentView === 'hill') drawHillChart();
+  updateUptime();
+}
+let lastUptimeUpdate=0;
+function updateUptime(){
+  const now=performance.now();
+  if (now-lastUptimeUpdate < 500) return;
+  lastUptimeUpdate=now;
+  const up=Math.floor((Date.now()-S.uptimeStart)/1000);
+  const hh=String(Math.floor(up/3600)).padStart(2,'0');
+  const mm=String(Math.floor((up%3600)/60)).padStart(2,'0');
+  const ss=String(up%60).padStart(2,'0');
+  setText('uptime-label', `${hh}:${mm}:${ss}`);
+}
+
+/* ============================================================
+   EVENT LISTENERS & BOOTSTRAP
+============================================================ */
+window.addEventListener('resize',()=>{
+  if(charts.miniRpm) charts.miniRpm.setSize({width:$('mini-rpm').clientWidth,height:128});
+  if(charts.miniPower) charts.miniPower.setSize({width:$('mini-power').clientWidth,height:128});
+  if(charts.mainRpm) charts.mainRpm.setSize({width:$('main-rpm').clientWidth,height:256});
+  if(charts.mainPower) charts.mainPower.setSize({width:$('main-power').clientWidth,height:256});
+  if(charts.mainFlow) charts.mainFlow.setSize({width:$('main-flow').clientWidth,height:192});
+  if(monitorRenderer && $('monitor-3d')){
+    const w=$('monitor-3d').clientWidth, h=320;
+    monitorCamera.aspect=w/h; monitorCamera.updateProjectionMatrix();
+    monitorRenderer.setSize(w,h);
+  }
+  if(renderer && $('full-3d')){
+    const w=$('full-3d').clientWidth, h=600;
+    camera.aspect=w/h; camera.updateProjectionMatrix();
+    renderer.setSize(w,h);
+  }
+});
+
+window.addEventListener('keydown', e=>{
+  if(['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)) return;
+  const k=e.key.toLowerCase();
+  if(k===' '){ e.preventDefault(); toggleTrip(); }
+  else if(k==='s') startPlant();
+  else if(k==='p') stopPlant();
+  else if(k==='t') toggleTheme();
+  else if(k==='a') switchView('alarms');
+  else if(k==='m') switchView('monitor');
+  else if(k==='3') switchView('3d');
+  else if(k==='2') switchView('2d');
+  else if(k==='h') switchView('hmi');
+  else if(k==='r') switchView('trends');
+});
+
+window.addEventListener('load',()=>{
+  const saved=localStorage.getItem('francis-theme')||'dark';
+  if(saved==='dark'){
+    document.documentElement.classList.add('dark');
+    $('theme-icon').className='fa-solid fa-sun';
+  } else {
+    document.documentElement.classList.remove('dark');
+    $('theme-icon').className='fa-solid fa-moon';
+  }
+  const savedPid = localStorage.getItem('francis-pid');
+  if (savedPid) {
+    try {
+      const p = JSON.parse(savedPid);
+      S.Kp=p.Kp; S.Ti=p.Ti; S.droop=p.droop;
+      $('pid-kp').value=p.Kp; $('pid-ti').value=p.Ti; $('pid-droop').value=p.droop;
+    } catch(e){}
+  }
+  initMonitor3D();
+  initMiniCharts();
+  calculateSizing();
+  switchView('monitor');
+  renderAlarms();
+  raiseAlarm('info','SYS-000','Sistema SCADA iniciado');
+  toast('Sistema iniciado · pulse S para arrancar','info',4000);
+  requestAnimationFrame(loop);
+});
+</script>
+</body>
+</html>

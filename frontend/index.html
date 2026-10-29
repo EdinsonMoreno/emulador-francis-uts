@@ -1,13 +1,197 @@
 <!DOCTYPE html>
-<html lang="es">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Emulador en tiempo real de la turbina Francis — Mecánica de Fluidos, UTS Barrancabermeja" />
-    <title>Emulador Francis UTS</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+<html lang="es" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Francis UTS · SCADA Master Workspace Ultimate v5.0</title>
+<link rel="icon" href="/favicon.ico" type="image/x-icon">
+<link rel="stylesheet" href="/style.css">
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/uplot@1.6.24/dist/uPlot.min.css">
+<script src="https://cdn.jsdelivr.net/npm/uplot@1.6.24/dist/uPlot.iife.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script type="module" src="/src/store.js"></script>
+<script type="module" src="/src/ui.js"></script>
+<script type="module" src="/src/app.js"></script>
+</head>
+<body>
+<header class="header">
+  <div class="header-brand">
+    <div class="logo">
+      <i class="fa-solid fa-water text-2xl text-white"></i>
+    </div>
+    <div>
+      <div class="header-title">FRANCIS-UTS MASTER SCADA</div>
+      <div class="header-subtitle">Laboratorio de Mecánica de Fluidos · UTS Barrancabermeja</div>
+    </div>
+  </div>
+  <div class="header-actions">
+    <div class="system-status" id="grid-status-badge">
+      <span id="grid-led" class="w-2.5 h-2.5 rounded-full bg-slate-500"></span>
+      <span id="grid-status-txt">EN ISLA</span>
+    </div>
+    <button onclick="toggleSound()" id="btn-sound" title="Sonido" class="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:text-slate-300 w-8 h-8 rounded-lg flex items-center justify-center text-xs">
+      <i class="fa-solid fa-volume-low text-brand-400"></i>
+    </button>
+    <button onclick="toggleTheme()" title="Tema" class="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:text-slate-300 w-8 h-8 rounded-lg flex items-center justify-center text-xs">
+      <i id="theme-icon" class="fa-solid fa-sun text-amber-400"></i>
+    </button>
+  </div>
+</header>
+
+<aside class="sidebar">
+  <nav class="nav-list">
+    <button class="nav-item active" data-nav="overview" onclick="UI.renderMainView('monitor')"><span class="icon"><i class="fa-solid fa-gauge-high"></i></span>Monitor General</button>
+    <button class="nav-item" data-nav="3d" onclick="UI.renderMainView('3d')"><span class="icon"><i class="fa-solid fa-cube"></i></span>Gemelo Digital 3D</button>
+    <button class="nav-item" data-nav="pid" onclick="UI.renderMainView('hmi')"><span class="icon"><i class="fa-solid fa-diagram-project"></i></span>Esquema P&ID ISA</button>
+    <button class="nav-item" data-nav="hmi" onclick="UI.renderMainView('hmi')"><span class="icon"><i class="fa-solid fa-sliders"></i></span>Gobernador / HMI</button>
+    <button class="nav-item" data-nav="trends" onclick="UI.renderMainView('trends')"><span class="icon"><i class="fa-solid fa-chart-line"></i></span>Tendencias y Hill</button>
+    <button class="nav-item" data-nav="sizing" onclick="UI.renderMainView('sizing')"><span class="icon"><i class="fa-solid fa-calculator"></i></span>Triángulos Velocidad</button>
+    <button class="nav-item" data-nav="alarms" onclick="UI.renderMainView('alarms')"><span class="icon"><i class="fa-solid fa-bell"></i></span>Registro Alarmas<span class="badge" id="nav-alarm-badge">0</span></button>
+    <button class="nav-item" data-nav="labs" onclick="UI.renderMainView('labs')"><span class="icon"><i class="fa-solid fa-flask"></i></span>Guía de Prácticas</button>
+  </nav>
+</aside>
+
+<main class="main">
+  <div class="view active" id="view-overview">
+    <div class="kpi-grid" id="kpi-grid"></div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+      <div class="bg-card border border-slate-800 rounded-2xl p-4 shadow-lg">
+        <div class="flex justify-between items-center mb-2">
+          <h4 class="text-xs font-bold text-slate-200"><i class="fa-solid fa-gauge-high text-brand-400 mr-2"></i>RESPUESTA DE VELOCIDAD (30 Hz)</h4>
+          <span class="text-[10px] font-mono text-cyan-400">Gobernador PID</span>
+        </div>
+        <div id="chart-mini-rpm" class="mini-chart"></div>
+      </div>
+      <div class="bg-card border border-slate-800 rounded-2xl p-4 shadow-lg">
+        <div class="flex justify-between items-center mb-2">
+          <h4 class="text-xs font-bold text-slate-200"><i class="fa-solid fa-chart-bar text-brand-400 mr-2"></i>POTENCIA (kW)</h4>
+          <span class="text-[10px] font-mono text-amber-400">Mecánica vs Eléctrica</span>
+        </div>
+        <div id="chart-mini-power" class="mini-chart"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="view" id="view-3d">
+    <div class="view-turbina">
+      <canvas id="turbina-canvas" class="w-full h-full"></canvas>
+      <div class="turbina-label">Gemelo Digital 3D · Rodete en movimiento sincronizado con PID</div>
+    </div>
+  </div>
+
+  <div class="view" id="view-hmi">
+    <div class="h2-turbina"><i class="fa-solid fa-sliders text-brand-400 mr-3"></i> Panel de Controles</div>
+    <div id="control-panel"></div>
+  </div>
+
+  <div class="view" id="view-trends">
+    <div class="h2-turbina"><i class="fa-solid fa-chart-line text-emerald-400 mr-3"></i> Tendencias de Proceso</div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 p-4">
+      <div class="bg-card border border-slate-800 rounded-2xl p-4 shadow-lg">
+        <div class="flex justify-between items-center mb-2">
+          <h5 class="text-xs font-bold text-slate-200">VELOCIDAD Y CONSIGNA (RPM)</h5>
+          <span class="text-[10px] font-mono text-cyan-400">Gobernador PID</span>
+        </div>
+        <div id="chart-main-speed" class="mini-chart"></div>
+      </div>
+      <div class="bg-card border border-slate-800 rounded-2xl p-4 shadow-lg">
+        <div class="flex justify-between items-center mb-2">
+          <h5 class="text-xs font-bold text-slate-200">POTENCIA MECÁNICA Y ELÉCTRICA (kW)</h5>
+          <span class="text-[10px] font-mono text-amber-400">P_mec vs P_el</span>
+        </div>
+        <div id="chart-main-power" class="mini-chart"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="view" id="view-sizing">
+    <div class="h2-turbina"><i class="fa-solid fa-calculator text-brand-400 mr-3"></i> Triángulos y Sizing</div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 p-4">
+      <div class="bg-card border border-slate-800 rounded-2xl p-4 shadow-lg">
+        <div class="flex justify-between items-center mb-2">
+          <h5 class="text-xs font-bold text-slate-200">ENTRADAS DE DIMENSIONAMIENTO</h5>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="text-xs font-mono text-slate-400 block mb-1">Caída de Diseño H_d (m)</label><input type="number" id="size-h" value="35.0" step="0.5" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 font-mono text-white text-sm outline-none"></div>
+          <div><label class="text-xs font-mono text-slate-400 block mb-1">Caudal de Diseño Q_d (m³/s)</label><input type="number" id="size-q" value="0.85" step="0.05" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 font-mono text-white text-sm outline-none"></div>
+          <div><label class="text-xs font-mono text-slate-400 block mb-1">Velocidad Síncrona n (RPM)</label><input type="number" id="size-n" value="1300" step="10" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 font-mono text-white text-sm outline-none"></div>
+          <div><label class="text-xs font-mono text-slate-400 block mb-1">Eficiencia Objetivo η (%)</label><input type="number" id="size-eta" value="91.5" step="0.5" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 font-mono text-white text-sm outline-none"></div>
+        </div>
+        <div class="mt-3 bg-slate-900 p-3 rounded-xl border border-slate-800 space-y-2 font-mono text-xs">
+          <div class="flex justify-between"><span class="text-slate-400">Velocidad Específica (n_s):</span><span id="res-ns" class="text-cyan-400 font-bold">149.1 rpm</span></div>
+          <div class="flex justify-between"><span class="text-slate-400">Diámetro Entrada (D1):</span><span id="res-d1" class="text-amber-400 font-bold">0.385 m</span></div>
+          <div class="flex justify-between"><span class="text-slate-400">Diámetro Salida (D2):</span><span id="res-d2" class="text-indigo-300 font-bold">0.315 m</span></div>
+          <div class="flex justify-between"><span class="text-slate-400">Velocidad Periférica (U1):</span><span id="res-u1" class="text-emerald-400 font-bold">26.18 m/s</span></div>
+          <div class="flex justify-between"><span class="text-slate-400">Velocidad Torbellino (Vw1):</span><span id="res-vw1" class="text-rose-400 font-bold">12.0 m/s</span></div>
+          <div class="flex justify-between"><span class="text-slate-400">Altura de Euler (He):</span><span id="res-he" class="text-blue-300 font-bold">30.0 m</span></div>
+          <div class="flex justify-between pt-2 border-t border-slate-800"><span class="text-slate-200">Clasificación:</span><span id="res-type" class="text-cyan-300 font-bold">Francis Normal</span></div>
+        </div>
+      </div>
+      <div class="bg-card border border-slate-800 rounded-2xl p-4 shadow-lg">
+        <div class="h4-turbina"><i class="fa-solid fa-chart-simple text-brand-400 mr-3"></i> Triángulo de Velocidades</div>
+        <canvas id="velocity-triangle-canvas" class="w-full h-40 bg-slate-950 border border-slate-800 rounded-xl"></canvas>
+        <p class="text-xs text-slate-500 mt-2 font-mono">U1 = Periférica | Vw1 = Torbellino</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="view" id="view-alarms">
+    <div class="h2-turbina"><i class="fa-solid fa-bell text-rose-400 mr-3"></i> Registro de Alarmas</div>
+    <div class="bg-card border border-slate-800 rounded-2xl p-4 shadow-2xl space-y-4">
+      <div class="flex justify-between items-center">
+        <h4 class="text-sm font-bold text-ink"><i class="fa-solid fa-bell text-rose-400 mr-2"></i>Registro de Alarmas (ISA-18.2)</h4>
+        <div class="flex gap-2">
+          <select id="alarm-filter" class="bg-slate-900 border border-slate-800 text-xs font-mono px-3 py-1.5 rounded-lg text-slate-200 outline-none">
+            <option value="all">Todas las Severidades</option>
+            <option value="critical">Solo Críticas (P1)</option>
+            <option value="warning">Solo Advertencias (P2)</option>
+            <option value="info">Informativas (P3)</option>
+          </select>
+          <button onclick="clearAlarms()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-mono px-3 py-1.5 rounded-lg border border-slate-700 transition flex items-center gap-1.5"><i class="fa-solid fa-trash mr-1"></i>Limpiar</button>
+        </div>
+      </div>
+      <div id="alarm-table-body" class="overflow-x-auto"></div>
+    </div>
+  </div>
+
+  <div class="view" id="view-practices">
+    <div class="h2-turbina"><i class="fa-solid fa-flask text-cyan-400 mr-3"></i> Guía de Prácticas</div>
+    <div class="lab-scenario">
+      <div class="lab-card" onclick="runLabScenario('startup')">
+        <div class="icon" style="background:rgba(0,212,255,0.15);color:var(--accent)"><i class="fa-solid fa-play"></i></div>
+        <div class="title">Arranque Black-Start &amp; Sincronización</div>
+        <div class="description">Guía el proceso desde 0 RPM, rampa de apertura y gobernador PID hasta acople a red en 60 Hz.</div>
+      </div>
+      <div class="lab-card" onclick="runLabScenario('rejection')">
+        <div class="icon" style="background:rgba(239,68,68,0.15);color:var(--status-error)"><i class="fa-solid fa-bolt"></i></div>
+        <div class="title">Rechazo de Carga 100%</div>
+        <div class="description">Simula la apertura súbita del interruptor 52-1, observando sobrevelocidad transitoria y onda de golpe de ariete.</div>
+      </div>
+      <div class="lab-card" onclick="runLabScenario('cavitation')">
+        <div class="icon" style="background:rgba(245,158,11,0.15);color:var(--status-warning)"><i class="fa-solid fa-water"></i></div>
+        <div class="title">Prueba Límite Cavitación</div>
+        <div class="description">Operación a baja caída y apertura reducida para detonar caída de sigma Thoma por debajo del valor crítico.</div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="footer-left">
+    <span class="status-light ok"></span>
+    <span>Vitalicio 30 Hz · Motor de física operativo · SOLID</span>
+    <span class="text-slate-500 ml-2 font-mono" id="uptime-clock">00:00:00</span>
+  </div>
+  <div class="footer-right">
+    <span id="uptime-display" class="text-[10px] font-mono text-slate-500">SCADA v5.0 Ultimate · SOLID</span>
+    <button onclick="exportCSV()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-mono px-3 py-1.5 rounded-lg border border-slate-700 transition flex items-center gap-1.5"><i class="fa-solid fa-download"></i> CSV</button>
+  </div>
+</footer>
+
+<div id="toast-container" class="toast-container"></div>
+</body>
 </html>

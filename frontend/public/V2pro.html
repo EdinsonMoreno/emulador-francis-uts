@@ -1,0 +1,1530 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Francis UTS · SCADA Workspace v3.0</title>
+
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/uplot@1.6.24/dist/uPlot.min.css">
+<script src="https://cdn.jsdelivr.net/npm/uplot@1.6.24/dist/uPlot.iife.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+<script>
+tailwind.config = { darkMode:'class', theme:{ extend:{
+  fontFamily:{ sans:['Inter','sans-serif'], mono:['JetBrains Mono','monospace'] },
+  colors:{ brand:{50:'#f0f9ff',100:'#e0f2fe',200:'#bae6fd',300:'#7dd3fc',400:'#38bdf8',500:'#0ea5e9',600:'#0284c7',700:'#0369a1',800:'#075985',900:'#0c4a6e'} }
+}}};
+</script>
+
+<style>
+  html,body{height:100%;margin:0}
+  body{font-family:'Inter',sans-serif;-webkit-font-smoothing:antialiased;user-select:none}
+  ::-webkit-scrollbar{width:6px;height:6px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:#475569;border-radius:4px}
+  ::-webkit-scrollbar-thumb:hover{background:#64748b}
+
+  @keyframes dash{to{stroke-dashoffset:-60}}
+  .flow-line{stroke-dasharray:8 6;animation:dash 1.6s linear infinite}
+  .flow-line.paused{animation:none;stroke-dasharray:8 6;opacity:.3}
+
+  @keyframes pulse-dot{0%,100%{opacity:1;box-shadow:0 0 8px currentColor}50%{opacity:.4;box-shadow:0 0 16px currentColor}}
+  .pulse-dot{animation:pulse-dot 1.8s infinite}
+
+  @keyframes banner-pulse{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.5)}50%{box-shadow:0 0 0 10px rgba(239,68,68,0)}}
+  .alarm-banner{animation:banner-pulse 1.4s infinite}
+
+  @keyframes toast-in{from{transform:translateX(120%);opacity:0}to{transform:translateX(0);opacity:1}}
+  .toast{animation:toast-in .25s ease-out}
+
+  input[type=range]{-webkit-appearance:none;appearance:none;height:6px;border-radius:999px;outline:none;background:#334155}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:#0284c7;border:2px solid #fff;box-shadow:0 0 10px rgba(14,165,233,.5);cursor:pointer;transition:transform .12s}
+  input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.18);background:#38bdf8}
+
+  .nav-item.active{background:linear-gradient(90deg,rgba(14,165,233,.25),rgba(14,165,233,.03));border-left:2px solid #38bdf8;color:#fff}
+  .glass{backdrop-filter:blur(14px);background:rgba(15,23,42,.78);border:1px solid rgba(255,255,255,.08)}
+
+  .uplot .u-axis{font-size:10px;font-family:'JetBrains Mono',monospace}
+  .uplot .u-legend{font-size:11px;font-family:'Inter',sans-serif}
+
+  .tabular{font-variant-numeric:tabular-nums}
+  .mode-toggle button.active{background:#0284c7;color:#fff}
+  .p-chip{font-size:9px;font-weight:800;padding:1px 5px;border-radius:4px}
+  .status-dot{display:inline-block;width:8px;height:8px;border-radius:50%}
+
+  .switch{position:relative;display:inline-block;width:36px;height:20px}
+  .switch input{opacity:0;width:0;height:0}
+  .slider{position:absolute;cursor:pointer;inset:0;background:#475569;border-radius:20px;transition:.2s}
+  .slider:before{position:absolute;content:"";height:14px;width:14px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.2s}
+  .switch input:checked + .slider{background:#0284c7}
+  .switch input:checked + .slider:before{transform:translateX(16px)}
+
+  .kpi-card{position:relative;overflow:hidden;transition:transform .15s,border-color .15s}
+  .kpi-card:hover{transform:translateY(-1px)}
+  .kpi-accent{position:absolute;top:0;right:0;width:80px;height:80px;border-bottom-left-radius:100%;opacity:.35;pointer-events:none}
+</style>
+</head>
+
+<body class="h-screen flex flex-col overflow-hidden bg-slate-100 dark:bg-slate-950 text-slate-800 dark:text-slate-200">
+
+<!-- ════════════════════ HEADER ════════════════════ -->
+<header class="h-14 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 flex items-center justify-between shrink-0 z-30 shadow-sm">
+  <div class="flex items-center gap-4 min-w-0">
+    <div class="flex items-center gap-2.5">
+      <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-500 via-cyan-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-brand-500/25 ring-1 ring-white/20">
+        <i class="fa-solid fa-water text-white text-sm"></i>
+      </div>
+      <div class="min-w-0">
+        <div class="flex items-center gap-1.5">
+          <h1 class="text-sm font-extrabold tracking-tight text-slate-900 dark:text-white">FRANCIS UTS</h1>
+          <span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-brand-100 dark:bg-brand-950 text-brand-700 dark:text-brand-400 border border-brand-200 dark:border-brand-800">v3.0</span>
+        </div>
+        <p class="text-[10px] text-slate-500 font-mono">Unidad 1 · Lab Hidráulica</p>
+      </div>
+    </div>
+
+    <!-- Telemetry Strip -->
+    <div class="hidden xl:flex items-center gap-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3 py-1 rounded-lg text-xs font-mono">
+      <div class="flex items-center gap-1.5">
+        <i class="fa-solid fa-gauge-high text-brand-500 text-[10px]"></i>
+        <span class="text-slate-500">n:</span>
+        <span id="top-rpm" class="font-bold text-slate-900 dark:text-white tabular">0</span>
+        <span class="text-slate-400 text-[9px]">rpm</span>
+      </div>
+      <div class="w-px h-3 bg-slate-300 dark:bg-slate-700"></div>
+      <div class="flex items-center gap-1.5">
+        <i class="fa-solid fa-bolt text-amber-500 text-[10px]"></i>
+        <span class="text-slate-500">P:</span>
+        <span id="top-power" class="font-bold text-amber-600 dark:text-amber-400 tabular">0.0</span>
+        <span class="text-slate-400 text-[9px]">W</span>
+      </div>
+      <div class="w-px h-3 bg-slate-300 dark:bg-slate-700"></div>
+      <div class="flex items-center gap-1.5">
+        <i class="fa-solid fa-faucet-drip text-cyan-500 text-[10px]"></i>
+        <span class="text-slate-500">Q:</span>
+        <span id="top-flow" class="font-bold text-cyan-600 dark:text-cyan-400 tabular">0.0</span>
+        <span class="text-slate-400 text-[9px]">L/min</span>
+      </div>
+      <div class="w-px h-3 bg-slate-300 dark:bg-slate-700"></div>
+      <div class="flex items-center gap-1.5">
+        <i class="fa-solid fa-percent text-emerald-500 text-[10px]"></i>
+        <span class="text-slate-500">η:</span>
+        <span id="top-eta" class="font-bold text-emerald-600 dark:text-emerald-400 tabular">0</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="flex items-center gap-2">
+    <!-- State -->
+    <span id="plant-badge" class="hidden md:inline-flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 text-[10px] font-bold px-2.5 py-1 rounded-full">
+      <span class="status-dot bg-slate-400"></span> Detenida
+    </span>
+    <!-- Mode -->
+    <span id="mode-badge" class="hidden md:inline-flex items-center gap-1.5 bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800 text-[10px] font-bold px-2.5 py-1 rounded-full">
+      <i class="fa-solid fa-hand"></i> Manual
+    </span>
+
+    <button onclick="toggleSound()" id="btn-sound" title="Sonido" class="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 flex items-center justify-center text-xs"><i class="fa-solid fa-volume-low"></i></button>
+    <button onclick="toggleTheme()" title="Tema" class="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 flex items-center justify-center text-xs"><i id="theme-icon" class="fa-solid fa-sun"></i></button>
+    <button onclick="exportCSV()" class="hidden sm:flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold px-2.5 py-1.5 rounded-lg"><i class="fa-solid fa-file-csv text-emerald-500"></i>CSV</button>
+    <button onclick="toggleTrip()" id="btn-trip" class="bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold px-3 py-2 rounded-lg shadow-sm flex items-center gap-1.5"><i class="fa-solid fa-triangle-exclamation"></i><span class="hidden sm:inline">Disparo</span></button>
+  </div>
+</header>
+
+<!-- ════════════════════ ALARM BANNER ════════════════════ -->
+<div id="alarm-banner" class="hidden shrink-0 bg-rose-600 text-white px-4 py-2 flex items-center gap-3 text-xs font-semibold alarm-banner z-20">
+  <i class="fa-solid fa-triangle-exclamation animate-bounce"></i>
+  <span id="alarm-banner-msg" class="flex-1 font-mono">—</span>
+  <button onclick="acknowledgeAllAlarms()" class="bg-white/20 hover:bg-white/30 text-white text-[10px] font-bold px-3 py-1 rounded">RECONOCER</button>
+</div>
+
+<!-- ════════════════════ BODY ════════════════════ -->
+<div class="flex-1 flex min-h-0 overflow-hidden">
+
+<!-- ── SIDEBAR ── -->
+<aside class="w-56 bg-slate-900 border-r border-slate-800 flex flex-col shrink-0 z-20">
+  <nav class="flex-1 p-2 space-y-0.5 overflow-y-auto">
+    <p class="px-3 pt-2 pb-1 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Operación</p>
+    <button data-nav="overview" onclick="switchView('overview')" class="nav-item active w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium text-slate-400 hover:bg-slate-800/60 hover:text-white transition"><i class="fa-solid fa-gauge-high w-4 text-center text-brand-400"></i>Monitor</button>
+    <button data-nav="3d" onclick="switchView('3d')" class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium text-slate-400 hover:bg-slate-800/60 hover:text-white transition"><i class="fa-solid fa-cube w-4 text-center text-brand-400"></i>Vista 3D</button>
+    <button data-nav="pid" onclick="switchView('pid')" class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium text-slate-400 hover:bg-slate-800/60 hover:text-white transition"><i class="fa-solid fa-diagram-project w-4 text-center text-brand-400"></i>P&amp;ID</button>
+    <button data-nav="hmi" onclick="switchView('hmi')" class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium text-slate-400 hover:bg-slate-800/60 hover:text-white transition"><i class="fa-solid fa-sliders w-4 text-center text-amber-400"></i>Gobernador HMI</button>
+
+    <p class="px-3 pt-4 pb-1 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Análisis</p>
+    <button data-nav="trends" onclick="switchView('trends')" class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium text-slate-400 hover:bg-slate-800/60 hover:text-white transition"><i class="fa-solid fa-chart-line w-4 text-center text-emerald-400"></i>Tendencias</button>
+    <button data-nav="hill" onclick="switchView('hill')" class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium text-slate-400 hover:bg-slate-800/60 hover:text-white transition"><i class="fa-solid fa-mountain-sun w-4 text-center text-violet-400"></i>Hill Chart</button>
+    <button data-nav="sizing" onclick="switchView('sizing')" class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium text-slate-400 hover:bg-slate-800/60 hover:text-white transition"><i class="fa-solid fa-calculator w-4 text-center text-indigo-400"></i>Dimensionamiento</button>
+
+    <p class="px-3 pt-4 pb-1 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Diagnóstico</p>
+    <button data-nav="alarms" onclick="switchView('alarms')" class="nav-item w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium text-slate-400 hover:bg-slate-800/60 hover:text-white transition">
+      <div class="flex items-center gap-3"><i class="fa-solid fa-bell w-4 text-center text-rose-400"></i>Alarmas</div>
+      <span id="alarm-count" class="bg-slate-700 text-slate-300 text-[10px] font-bold px-1.5 rounded-full min-w-[20px] text-center">0</span>
+    </button>
+    <button data-nav="labs" onclick="switchView('labs')" class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium text-slate-400 hover:bg-slate-800/60 hover:text-white transition"><i class="fa-solid fa-flask w-4 text-center text-teal-400"></i>Prácticas</button>
+  </nav>
+
+  <div class="p-3 border-t border-slate-800 bg-slate-950/40 text-[11px] font-mono space-y-1.5">
+    <div class="flex items-center justify-between">
+      <span class="flex items-center gap-1.5 text-slate-400"><span class="status-dot bg-emerald-500 pulse-dot"></span>Online</span>
+      <span class="text-slate-500">30 Hz</span>
+    </div>
+    <div class="flex items-center justify-between text-slate-500"><span>Uptime</span><span id="uptime-label" class="text-slate-300">00:00:00</span></div>
+    <div class="flex items-center justify-between text-slate-500"><span>Link</span><span class="text-emerald-400">Modbus/TCP</span></div>
+  </div>
+</aside>
+
+<!-- ── MAIN ── -->
+<main class="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-100 dark:bg-slate-950">
+
+<!-- ═════════ KPIs (always visible) ═════════ -->
+<section class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+  <div class="kpi-card bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-sm">
+    <div class="kpi-accent bg-brand-500"></div>
+    <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider relative">Velocidad</p>
+    <div class="flex items-baseline gap-1 mt-1 relative">
+      <span id="kpi-rpm" class="text-xl font-black font-mono text-slate-900 dark:text-white tabular">0.0</span>
+      <span class="text-xs text-slate-400">rpm</span>
+    </div>
+    <div class="mt-2 w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden relative">
+      <div id="bar-rpm" class="bg-brand-500 h-full transition-all" style="width:0%"></div>
+    </div>
+    <p class="text-[9px] font-mono text-slate-400 mt-1 relative">n* <span id="kpi-nref">1300</span> rpm</p>
+  </div>
+
+  <div class="kpi-card bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-sm">
+    <div class="kpi-accent bg-amber-500"></div>
+    <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider relative">P. eléctrica</p>
+    <div class="flex items-baseline gap-1 mt-1 relative">
+      <span id="kpi-power" class="text-xl font-black font-mono text-amber-600 dark:text-amber-400 tabular">0.00</span>
+      <span class="text-xs text-slate-400">W</span>
+    </div>
+    <p class="text-[10px] text-slate-400 mt-2 font-mono relative">Mec: <span id="kpi-pmech" class="text-slate-600 dark:text-slate-300">0.00 W</span></p>
+  </div>
+
+  <div class="kpi-card bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-sm">
+    <div class="kpi-accent bg-cyan-500"></div>
+    <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider relative">Caudal</p>
+    <div class="flex items-baseline gap-1 mt-1 relative">
+      <span id="kpi-flow" class="text-xl font-black font-mono text-cyan-600 dark:text-cyan-400 tabular">0.00</span>
+      <span class="text-xs text-slate-400">L/min</span>
+    </div>
+    <p class="text-[10px] text-slate-400 mt-2 font-mono relative">a: <span id="kpi-gate" class="text-slate-600 dark:text-slate-300">0 %</span></p>
+  </div>
+
+  <div class="kpi-card bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-sm">
+    <div class="kpi-accent bg-indigo-500"></div>
+    <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider relative">Altura neta</p>
+    <div class="flex items-baseline gap-1 mt-1 relative">
+      <span id="kpi-head" class="text-xl font-black font-mono text-indigo-600 dark:text-indigo-300 tabular">3.058</span>
+      <span class="text-xs text-slate-400">m</span>
+    </div>
+    <p class="text-[10px] text-slate-400 mt-2 font-mono relative">σ: <span id="kpi-sigma" class="text-slate-600 dark:text-slate-300">—</span></p>
+  </div>
+
+  <div class="kpi-card bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-sm">
+    <div class="kpi-accent bg-emerald-500"></div>
+    <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider relative">Eficiencia</p>
+    <div class="flex items-baseline gap-1 mt-1 relative">
+      <span id="kpi-eta" class="text-xl font-black font-mono text-emerald-600 dark:text-emerald-400 tabular">0.0</span>
+      <span class="text-xs text-slate-400">%</span>
+    </div>
+    <p class="text-[10px] text-slate-400 mt-2 font-mono relative">Hid: <span id="kpi-phyd" class="text-slate-600 dark:text-slate-300">0.00 W</span></p>
+  </div>
+
+  <div class="kpi-card bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-sm">
+    <div class="kpi-accent bg-rose-500"></div>
+    <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider relative">Estado</p>
+    <p id="kpi-state" class="text-lg font-black text-slate-900 dark:text-white mt-1 relative">Detenida</p>
+    <p class="text-[10px] text-slate-400 mt-1 font-mono relative">Gob: <span id="kpi-gov" class="text-slate-600 dark:text-slate-300">Manual</span></p>
+  </div>
+</section>
+
+<!-- ═════════ VIEW: OVERVIEW ═════════ -->
+<div id="view-overview" class="view-panel space-y-4">
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+    <!-- 3D Preview -->
+    <div class="lg:col-span-2 bg-slate-900 rounded-2xl overflow-hidden relative border border-slate-800 shadow-lg h-[340px]">
+      <div id="monitor-3d" class="w-full h-full"></div>
+      <div class="absolute top-3 left-3 glass text-white px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2"><span class="status-dot bg-cyan-400 pulse-dot"></span>Vista 3D en vivo</div>
+      <button onclick="switchView('3d')" class="absolute bottom-3 right-3 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold px-3 py-1.5 rounded-lg backdrop-blur transition flex items-center gap-1.5"><span>Expandir</span><i class="fa-solid fa-expand text-cyan-400"></i></button>
+    </div>
+
+    <!-- Quick Governor -->
+    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 shadow-lg space-y-3 flex flex-col">
+      <div class="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-2">
+        <h3 class="text-xs font-bold uppercase tracking-wider font-mono flex items-center gap-2"><i class="fa-solid fa-sliders text-brand-500"></i>Control rápido</h3>
+        <div class="mode-toggle flex bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5">
+          <button onclick="setMode('manual')" id="btn-mode-manual" class="active text-[10px] font-bold px-2 py-0.5 rounded-md transition">MAN</button>
+          <button onclick="setMode('auto')" id="btn-mode-auto" class="text-[10px] font-bold px-2 py-0.5 rounded-md transition">AUTO</button>
+        </div>
+      </div>
+
+      <div>
+        <div class="flex justify-between text-xs font-semibold mb-1"><span class="text-slate-600 dark:text-slate-400">Apertura distribuidor</span><span id="quick-a-val" class="text-brand-600 font-mono">0 %</span></div>
+        <input type="range" id="quick-a" min="0" max="100" value="0" oninput="setOpening(this.value)" class="w-full">
+      </div>
+      <div>
+        <div class="flex justify-between text-xs font-semibold mb-1"><span class="text-slate-600 dark:text-slate-400">Consigna n*</span><span id="quick-n-val" class="text-amber-600 font-mono">1300 rpm</span></div>
+        <input type="range" id="quick-n" min="800" max="1800" step="10" value="1300" oninput="setSpeedRef(this.value)" class="w-full">
+      </div>
+      <div>
+        <div class="flex justify-between text-xs font-semibold mb-1"><span class="text-slate-600 dark:text-slate-400">Altura neta H₀</span><span id="quick-h-val" class="text-indigo-600 font-mono">3.058 m</span></div>
+        <input type="range" id="quick-h" min="1.0" max="10.0" step="0.05" value="3.058" oninput="setHead(this.value)" class="w-full">
+      </div>
+
+      <div class="grid grid-cols-2 gap-2 pt-1 mt-auto">
+        <button onclick="startPlant()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2 rounded-lg flex items-center justify-center gap-1.5"><i class="fa-solid fa-play"></i>Arrancar</button>
+        <button onclick="stopPlant()" class="bg-slate-700 hover:bg-slate-800 text-white text-xs font-bold py-2 rounded-lg flex items-center justify-center gap-1.5"><i class="fa-solid fa-stop"></i>Parar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mini charts -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 shadow-sm">
+      <div class="flex justify-between items-center mb-2"><h4 class="text-xs font-bold font-mono">VELOCIDAD (RPM)</h4><span class="text-[10px] text-brand-500 font-mono">PID</span></div>
+      <div id="mini-rpm" class="h-32"></div>
+    </div>
+    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 shadow-sm">
+      <div class="flex justify-between items-center mb-2"><h4 class="text-xs font-bold font-mono">POTENCIA (W)</h4><span class="text-[10px] text-amber-500 font-mono">P_hid vs P_elec</span></div>
+      <div id="mini-power" class="h-32"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═════════ VIEW: 3D ═════════ -->
+<div id="view-3d" class="view-panel hidden">
+  <div class="bg-slate-900 rounded-2xl overflow-hidden relative border border-slate-800 shadow-lg h-[calc(100vh-200px)] min-h-[500px]">
+    <div id="full-3d" class="w-full h-full"></div>
+
+    <div class="absolute top-4 left-4 glass p-4 rounded-xl text-white text-xs space-y-2.5 w-[230px]">
+      <p class="font-bold text-sm border-b border-white/10 pb-2 flex items-center justify-between"><span class="flex items-center gap-2"><i class="fa-solid fa-layer-group text-brand-400"></i>Capas 3D</span></p>
+      <label class="flex items-center justify-between cursor-pointer hover:text-cyan-300 transition"><span>Carcasa espiral</span><label class="switch"><input type="checkbox" id="lay-casing" checked onchange="toggleLayer('casing',this.checked)"><span class="slider"></span></label></label>
+      <label class="flex items-center justify-between cursor-pointer hover:text-cyan-300 transition"><span>Álabes guía</span><label class="switch"><input type="checkbox" id="lay-vanes" checked onchange="toggleLayer('vanes',this.checked)"><span class="slider"></span></label></label>
+      <label class="flex items-center justify-between cursor-pointer hover:text-cyan-300 transition"><span>Rodete Francis</span><label class="switch"><input type="checkbox" id="lay-runner" checked onchange="toggleLayer('runner',this.checked)"><span class="slider"></span></label></label>
+      <label class="flex items-center justify-between cursor-pointer hover:text-cyan-300 transition"><span>Flujo agua</span><label class="switch"><input type="checkbox" id="lay-particles" checked onchange="toggleLayer('particles',this.checked)"><span class="slider"></span></label></label>
+      <label class="flex items-center justify-between cursor-pointer hover:text-cyan-300 transition"><span>Ejes</span><label class="switch"><input type="checkbox" id="lay-axes" checked onchange="toggleLayer('axes',this.checked)"><span class="slider"></span></label></label>
+      <label class="flex items-center justify-between cursor-pointer hover:text-cyan-300 transition"><span>Auto-rotar</span><label class="switch"><input type="checkbox" id="lay-autorotate" checked onchange="toggleLayer('autorotate',this.checked)"><span class="slider"></span></label></label>
+
+      <p class="font-bold text-xs border-b border-white/10 pt-2 pb-2">Cámaras</p>
+      <div class="grid grid-cols-2 gap-1.5">
+        <button onclick="setCamera('iso')" class="bg-slate-800/60 hover:bg-slate-700 py-1 rounded text-[10px] font-mono">ISO</button>
+        <button onclick="setCamera('runner')" class="bg-slate-800/60 hover:bg-slate-700 py-1 rounded text-[10px] font-mono">Rodete</button>
+        <button onclick="setCamera('top')" class="bg-slate-800/60 hover:bg-slate-700 py-1 rounded text-[10px] font-mono">Superior</button>
+        <button onclick="setCamera('cut')" class="bg-slate-800/60 hover:bg-slate-700 py-1 rounded text-[10px] font-mono">Corte</button>
+      </div>
+    </div>
+
+    <div class="absolute top-4 right-4 glass p-3 rounded-xl text-[11px] text-white space-y-1 min-w-[170px]">
+      <p class="font-bold border-b border-white/10 pb-1 mb-1 flex items-center gap-1.5"><i class="fa-solid fa-wave-square text-cyan-400"></i>Telemetría</p>
+      <div class="flex justify-between"><span class="text-slate-400">Rodete</span><span id="3d-rpm" class="font-mono font-bold text-cyan-300">0 rpm</span></div>
+      <div class="flex justify-between"><span class="text-slate-400">Servo</span><span id="3d-servo" class="font-mono font-bold text-amber-300">0 %</span></div>
+      <div class="flex justify-between"><span class="text-slate-400">Flujo</span><span id="3d-flow" class="font-mono font-bold text-blue-300">0 L/min</span></div>
+      <div class="flex justify-between"><span class="text-slate-400">Par</span><span id="3d-torque" class="font-mono font-bold text-emerald-300">0 N·m</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═════════ VIEW: P&ID ═════════ -->
+<div id="view-pid" class="view-panel hidden">
+  <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-5 space-y-4">
+    <div class="flex justify-between items-center flex-wrap gap-2 border-b border-slate-200 dark:border-slate-800 pb-3">
+      <div>
+        <h3 class="text-base font-bold text-slate-900 dark:text-white">P&amp;ID · Unidad Francis 1</h3>
+        <p class="text-xs text-slate-500">Esquema hidráulico-eléctrico con instrumentación ISA-5.1</p>
+      </div>
+      <div class="flex gap-2 flex-wrap text-xs font-mono">
+        <span class="bg-cyan-50 dark:bg-cyan-950 text-cyan-700 dark:text-cyan-400 border border-cyan-200 dark:border-cyan-800 px-2.5 py-1 rounded-lg">Q: <strong id="pid-flow">0.0 L/min</strong></span>
+        <span class="bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800 px-2.5 py-1 rounded-lg">52-1: <strong id="pid-breaker">OPEN</strong></span>
+        <span class="bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 px-2.5 py-1 rounded-lg">MIV: <strong id="pid-miv">CLOSED</strong></span>
+      </div>
+    </div>
+
+    <div class="bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 p-3 overflow-x-auto">
+      <svg viewBox="0 0 1100 500" class="w-full max-w-[1040px] min-w-[760px]">
+        <defs>
+          <linearGradient id="waterGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#7dd3fc" stop-opacity=".75"/>
+            <stop offset="1" stop-color="#0284c7" stop-opacity=".95"/>
+          </linearGradient>
+          <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#64748b"/></marker>
+        </defs>
+
+        <!-- Embalse -->
+        <rect x="30" y="55" width="160" height="180" rx="10" fill="#e0f2fe" stroke="#0284c7" stroke-width="2.5" class="dark:fill-slate-800"/>
+        <path d="M 30,115 Q 65,105 100,115 T 180,115 L 180,235 L 30,235 Z" fill="url(#waterGrad)"/>
+        <text x="110" y="85" text-anchor="middle" font-weight="800" fill="#0369a1" font-size="13" class="dark:fill-sky-400">EMBALSE</text>
+        <text x="110" y="150" text-anchor="middle" font-weight="900" fill="#075985" font-size="20" font-family="JetBrains Mono" id="svg-head">3.06 m</text>
+        <text x="110" y="170" text-anchor="middle" font-size="10" fill="#0c4a6e" class="dark:fill-sky-300">H neta</text>
+
+        <!-- Penstock -->
+        <path d="M 190,175 L 370,265" stroke="#475569" stroke-width="22" stroke-linecap="round"/>
+        <path d="M 190,175 L 370,265" stroke="#0ea5e9" stroke-width="10" class="flow-line" id="flow-line-1"/>
+
+        <!-- Válvula MIV -->
+        <circle cx="280" cy="220" r="16" fill="#fff" stroke="#ef4444" stroke-width="3" class="dark:fill-slate-800"/>
+        <path d="M 272,212 L 288,228 M 272,228 L 288,212" stroke="#ef4444" stroke-width="3"/>
+        <text x="280" y="255" text-anchor="middle" font-size="9" fill="#64748b" font-weight="700">MIV-101</text>
+
+        <!-- Rodete -->
+        <circle cx="440" cy="295" r="72" fill="#f1f5f9" stroke="#0284c7" stroke-width="3" class="dark:fill-slate-800"/>
+        <circle cx="440" cy="295" r="42" fill="#bae6fd" stroke="#0369a1" stroke-width="2.5" class="dark:fill-sky-900"/>
+        <g id="svg-runner" transform="rotate(0 440 295)">
+          <line x1="440" y1="262" x2="440" y2="328" stroke="#075985" stroke-width="4"/>
+          <line x1="407" y1="295" x2="473" y2="295" stroke="#075985" stroke-width="4"/>
+          <circle cx="440" cy="295" r="11" fill="#0369a1"/>
+        </g>
+        <text x="440" y="385" text-anchor="middle" font-weight="800" fill="#0c4a6e" font-size="12" class="dark:fill-slate-300">Rodete Francis</text>
+        <text x="440" y="403" text-anchor="middle" font-weight="900" fill="#0284c7" font-size="14" font-family="JetBrains Mono" id="svg-rpm">0 RPM</text>
+
+        <!-- Eje -->
+        <rect x="510" y="289" width="105" height="12" fill="#64748b" rx="3"/>
+        <text x="562" y="280" text-anchor="middle" font-size="10" fill="#475569" font-weight="600">Eje</text>
+
+        <!-- Generador -->
+        <rect x="610" y="240" width="130" height="105" rx="14" fill="#fef3c7" stroke="#d97706" stroke-width="2.5" class="dark:fill-amber-950"/>
+        <circle cx="675" cy="292" r="32" fill="#fde047" stroke="#b45309" stroke-width="2"/>
+        <text x="675" y="298" text-anchor="middle" font-weight="900" fill="#78350f" font-size="16">G</text>
+        <text x="675" y="368" text-anchor="middle" font-weight="800" fill="#78350f" font-size="12" class="dark:fill-slate-300">Generador</text>
+        <text x="675" y="385" text-anchor="middle" font-weight="900" fill="#d97706" font-size="14" font-family="JetBrains Mono" id="svg-power">0.00 W</text>
+
+        <!-- Interruptor 52-1 -->
+        <path d="M 740,292 L 825,292" stroke="#d97706" stroke-width="4"/>
+        <rect x="825" y="270" width="40" height="44" rx="6" fill="#fff" stroke="#16a34a" stroke-width="3" class="dark:fill-slate-900"/>
+        <path d="M 835,292 L 855,292" stroke="#16a34a" stroke-width="4" id="svg-breaker-line"/>
+        <text x="845" y="330" text-anchor="middle" font-size="10" fill="#16a34a" font-weight="800">52-1</text>
+
+        <!-- Red -->
+        <rect x="885" y="250" width="80" height="85" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2.5" class="dark:fill-emerald-950"/>
+        <text x="925" y="285" text-anchor="middle" font-weight="800" fill="#15803d" font-size="12" class="dark:fill-emerald-400">RED</text>
+        <text x="925" y="305" text-anchor="middle" font-weight="700" fill="#15803d" font-size="11" font-family="JetBrains Mono" class="dark:fill-emerald-400">50 Hz</text>
+
+        <!-- Tubo de aspiración -->
+        <path d="M 485,355 L 460,445 L 560,445 L 535,355 Z" fill="#e0f2fe" stroke="#0284c7" stroke-width="2" class="dark:fill-slate-800"/>
+        <text x="510" y="430" text-anchor="middle" font-size="10" fill="#0369a1" font-weight="700" class="dark:fill-sky-400">Tubo aspiración</text>
+
+        <!-- Instrumentación ISA -->
+        <g font-family="JetBrains Mono" font-size="9" font-weight="700">
+          <circle cx="245" cy="200" r="12" fill="#fff" stroke="#0ea5e9" stroke-width="1.5" class="dark:fill-slate-900"/><text x="245" y="204" text-anchor="middle" fill="#0ea5e9">FT</text>
+          <text x="245" y="184" text-anchor="middle" font-size="8" fill="#475569" id="tag-ft" class="dark:fill-slate-400">0.0 L/m</text>
+
+          <circle cx="115" cy="258" r="12" fill="#fff" stroke="#0ea5e9" stroke-width="1.5" class="dark:fill-slate-900"/><text x="115" y="262" text-anchor="middle" fill="#0ea5e9">PT</text>
+          <text x="115" y="282" text-anchor="middle" font-size="8" fill="#475569" id="tag-pt" class="dark:fill-slate-400">0.30 bar</text>
+
+          <circle cx="440" cy="200" r="12" fill="#fff" stroke="#0ea5e9" stroke-width="1.5" class="dark:fill-slate-900"/><text x="440" y="204" text-anchor="middle" fill="#0ea5e9">PI</text>
+          <text x="440" y="184" text-anchor="middle" font-size="8" fill="#475569" id="tag-pi" class="dark:fill-slate-400">0 bar</text>
+
+          <circle cx="675" cy="225" r="12" fill="#fff" stroke="#0ea5e9" stroke-width="1.5" class="dark:fill-slate-900"/><text x="675" y="229" text-anchor="middle" fill="#0ea5e9">JT</text>
+          <text x="675" y="209" text-anchor="middle" font-size="8" fill="#475569" id="tag-jt" class="dark:fill-slate-400">0 N·m</text>
+
+          <circle cx="675" cy="395" r="12" fill="#fff" stroke="#ef4444" stroke-width="1.5" class="dark:fill-slate-900"/><text x="675" y="399" text-anchor="middle" fill="#ef4444">VT</text>
+          <text x="675" y="418" text-anchor="middle" font-size="8" fill="#475569" id="tag-vt" class="dark:fill-slate-400">0 rpm</text>
+
+          <circle cx="925" cy="240" r="12" fill="#fff" stroke="#16a34a" stroke-width="1.5" class="dark:fill-slate-900"/><text x="925" y="244" text-anchor="middle" fill="#16a34a">kW</text>
+          <text x="925" y="225" text-anchor="middle" font-size="8" fill="#475569" id="tag-kw" class="dark:fill-slate-400">0.0 W</text>
+        </g>
+
+        <!-- Leyenda -->
+        <g transform="translate(30, 470)" font-size="10" fill="#64748b">
+          <text x="0" y="0" font-weight="700" fill="#334155" class="dark:fill-slate-300">Leyenda:</text>
+          <rect x="60" y="-8" width="12" height="9" rx="2" fill="#0ea5e9"/><text x="78" y="0">Agua</text>
+          <rect x="120" y="-8" width="12" height="9" rx="2" fill="#d97706"/><text x="138" y="0">Eléctrico</text>
+          <rect x="200" y="-8" width="12" height="9" rx="2" fill="#16a34a"/><text x="218" y="0">Acople</text>
+          <circle cx="285" cy="-3" r="6" fill="#fff" stroke="#0ea5e9"/><text x="298" y="0">Instrumento</text>
+        </g>
+      </svg>
+    </div>
+  </div>
+</div>
+
+<!-- ═════════ VIEW: HMI / GOVERNOR ═════════ -->
+<div id="view-hmi" class="view-panel hidden space-y-4">
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+    <!-- Hydraulic controls + PID params -->
+    <div class="lg:col-span-2 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 space-y-5 shadow-sm">
+      <h3 class="text-xs font-bold font-mono border-b border-slate-100 dark:border-slate-800 pb-2 flex items-center gap-2"><i class="fa-solid fa-water text-brand-500"></i>CONTROLES HIDRÁULICOS</h3>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <div class="flex justify-between text-xs font-semibold mb-1.5"><span class="text-slate-600 dark:text-slate-400">Apertura distribuidor</span><span id="hmi-a-val" class="text-brand-600 font-mono">0 %</span></div>
+          <input type="range" id="hmi-a" min="0" max="100" value="0" oninput="setOpening(this.value)" class="w-full">
+        </div>
+        <div>
+          <div class="flex justify-between text-xs font-semibold mb-1.5"><span class="text-slate-600 dark:text-slate-400">Altura neta H₀</span><span id="hmi-h-val" class="text-indigo-600 font-mono">3.058 m</span></div>
+          <input type="range" id="hmi-h" min="1.0" max="10.0" step="0.05" value="3.058" oninput="setHead(this.value)" class="w-full">
+        </div>
+      </div>
+
+      <div class="border-t border-slate-100 dark:border-slate-800 pt-4 grid grid-cols-3 gap-2">
+        <div class="bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-800 p-2.5"><p class="text-[9px] font-bold text-slate-500 uppercase">Servo</p><p id="hmi-servo" class="font-mono font-bold text-lg text-brand-600 tabular">0.0 %</p></div>
+        <div class="bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-800 p-2.5"><p class="text-[9px] font-bold text-slate-500 uppercase">Error n</p><p id="hmi-error" class="font-mono font-bold text-lg text-amber-600 tabular">0.0</p></div>
+        <div class="bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-800 p-2.5"><p class="text-[9px] font-bold text-slate-500 uppercase">PID out</p><p id="hmi-out" class="font-mono font-bold text-lg text-slate-700 dark:text-slate-200 tabular">0.0</p></div>
+      </div>
+
+      <div class="border-t border-slate-100 dark:border-slate-800 pt-4">
+        <p class="text-[10px] font-bold text-slate-500 uppercase mb-2">Servo-actuador (rate limit 12.5 %/s)</p>
+        <div class="bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-800 p-3 space-y-2 text-xs font-mono">
+          <div class="flex justify-between"><span class="text-slate-500">Posición real</span><span id="servo-pos" class="text-emerald-600 font-bold">0.0 %</span></div>
+          <div class="w-full bg-slate-200 dark:bg-slate-900 h-2 rounded-full overflow-hidden"><div id="bar-servo" class="bg-emerald-500 h-full transition-all" style="width:0%"></div></div>
+          <div class="flex justify-between"><span class="text-slate-500">P. aceite</span><span class="text-emerald-600 font-bold">40.0 bar</span></div>
+          <div class="flex justify-between"><span class="text-slate-500">Histéresis</span><span class="text-slate-400">±0.15 %</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Governor + Synchroscope -->
+    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 space-y-4 shadow-sm">
+      <h3 class="text-xs font-bold font-mono border-b border-slate-100 dark:border-slate-800 pb-2 flex items-center gap-2"><i class="fa-solid fa-sliders text-amber-500"></i>GOBERNADOR PID</h3>
+
+      <div>
+        <div class="flex justify-between text-xs font-semibold mb-1.5"><span class="text-slate-600 dark:text-slate-400">Consigna n*</span><span id="hmi-n-val" class="text-amber-600 font-mono">1300 rpm</span></div>
+        <input type="range" id="hmi-n" min="800" max="1800" step="10" value="1300" oninput="setSpeedRef(this.value)" class="w-full">
+      </div>
+
+      <div class="grid grid-cols-4 gap-1.5">
+        <div class="bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-800 p-2 text-center"><label class="text-[9px] font-bold text-slate-500 uppercase block mb-1">Kp</label><input type="number" id="pid-kp" value="2.5" step="0.1" onchange="setPID('Kp',this.value)" class="w-full text-center font-mono font-bold text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded py-0.5 outline-none"></div>
+        <div class="bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-800 p-2 text-center"><label class="text-[9px] font-bold text-slate-500 uppercase block mb-1">Ti</label><input type="number" id="pid-ti" value="1.2" step="0.1" onchange="setPID('Ti',this.value)" class="w-full text-center font-mono font-bold text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded py-0.5 outline-none"></div>
+        <div class="bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-800 p-2 text-center"><label class="text-[9px] font-bold text-slate-500 uppercase block mb-1">Td</label><input type="number" id="pid-td" value="0.2" step="0.05" onchange="setPID('Td',this.value)" class="w-full text-center font-mono font-bold text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded py-0.5 outline-none"></div>
+        <div class="bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-800 p-2 text-center"><label class="text-[9px] font-bold text-slate-500 uppercase block mb-1">Dr%</label><input type="number" id="pid-droop" value="4.0" step="0.5" onchange="setPID('droop',this.value)" class="w-full text-center font-mono font-bold text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded py-0.5 outline-none"></div>
+      </div>
+
+      <div class="bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-800 p-2.5 space-y-1 text-[11px] font-mono">
+        <div class="flex justify-between"><span class="text-slate-500">P term</span><span id="pid-p" class="text-cyan-600 font-bold">0.00</span></div>
+        <div class="flex justify-between"><span class="text-slate-500">I term</span><span id="pid-i" class="text-amber-600 font-bold">0.00</span></div>
+        <div class="flex justify-between"><span class="text-slate-500">D term</span><span id="pid-d" class="text-indigo-500 font-bold">0.00</span></div>
+        <div class="flex justify-between pt-1 border-t border-slate-200 dark:border-slate-700"><span class="text-slate-700 dark:text-slate-200 font-bold">Salida</span><span id="pid-out" class="text-brand-600 font-bold">0.00</span></div>
+      </div>
+
+      <!-- Synchroscope -->
+      <div class="border-t border-slate-100 dark:border-slate-800 pt-3">
+        <p class="text-[10px] font-bold text-slate-500 uppercase mb-2">Sincronizador</p>
+        <div class="relative h-24 bg-slate-900 rounded-xl overflow-hidden flex items-center justify-center">
+          <div class="w-20 h-20 rounded-full border-2 border-slate-600 relative">
+            <div class="absolute top-0 left-1/2 -translate-x-1/2 w-0.5 h-2 bg-emerald-500"></div>
+            <div class="absolute top-2 left-1/2 -translate-x-1/2 text-[8px] text-emerald-400 font-mono">0°</div>
+            <div id="synchro-needle" class="absolute inset-0 origin-center transition-transform duration-75" style="transform:rotate(0deg)">
+              <div class="absolute left-1/2 top-2 w-0.5 h-6 -translate-x-1/2 bg-amber-400 rounded"></div>
+            </div>
+            <div class="absolute inset-0 flex items-center justify-center">
+              <div class="w-2 h-2 rounded-full bg-white"></div>
+            </div>
+          </div>
+          <div class="absolute bottom-1 left-2 right-2 flex justify-between text-[9px] text-slate-400 font-mono">
+            <span id="synchro-df">Δf: +0.00</span>
+            <span id="synchro-dphi">Δφ: 0°</span>
+          </div>
+        </div>
+        <button onclick="attemptSync()" id="sync-btn" class="w-full mt-2 bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold py-2 rounded-lg transition">Sincronizar a red</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═════════ VIEW: TRENDS ═════════ -->
+<div id="view-trends" class="view-panel hidden space-y-4">
+  <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm">
+    <div class="flex justify-between items-center mb-3"><h3 class="text-sm font-bold">Velocidad vs. consigna</h3><span class="text-[10px] font-mono bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded text-slate-500">uPlot · cursor activo</span></div>
+    <div id="main-rpm" class="h-64"></div>
+  </div>
+  <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm"><h3 class="text-sm font-bold mb-3">Potencia mecánica vs. eléctrica</h3><div id="main-power" class="h-64"></div></div>
+  <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm"><h3 class="text-sm font-bold mb-3">Caudal y apertura</h3><div id="main-flow" class="h-48"></div></div>
+</div>
+
+<!-- ═════════ VIEW: HILL ═════════ -->
+<div id="view-hill" class="view-panel hidden space-y-4">
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+    <div class="lg:col-span-2 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm">
+      <div class="flex justify-between items-center mb-3">
+        <div><h3 class="text-sm font-bold">Hill chart — mapa de eficiencia</h3><p class="text-xs text-slate-500">η en función de Q/Qd y n/nd</p></div>
+        <span class="text-[10px] font-mono bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded text-slate-500">Punto en vivo</span>
+      </div>
+      <div class="bg-slate-950 rounded-xl p-3 flex items-center justify-center">
+        <canvas id="hill-canvas" width="700" height="440" class="max-w-full rounded-lg"></canvas>
+      </div>
+      <div class="flex items-center gap-3 mt-3 text-[10px] text-slate-500 flex-wrap">
+        <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded" style="background:#440154"></span>Baja</div>
+        <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded" style="background:#3b528b"></span>—</div>
+        <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded" style="background:#21918c"></span>Media</div>
+        <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded" style="background:#5ec962"></span>—</div>
+        <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded" style="background:#fde725"></span>Alta</div>
+      </div>
+    </div>
+    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 space-y-3 shadow-sm">
+      <h3 class="text-sm font-bold border-b border-slate-100 dark:border-slate-800 pb-2">Punto de operación</h3>
+      <div class="flex justify-between text-xs"><span class="text-slate-500">Q/Qd</span><span id="hill-qr" class="font-mono font-bold">0.00</span></div>
+      <div class="flex justify-between text-xs"><span class="text-slate-500">n/nd</span><span id="hill-nr" class="font-mono font-bold">0.00</span></div>
+      <div class="flex justify-between text-xs"><span class="text-slate-500">η actual</span><span id="hill-eta" class="font-mono font-bold text-emerald-600">0.0 %</span></div>
+      <div class="flex justify-between text-xs"><span class="text-slate-500">η BEP</span><span class="font-mono font-bold text-slate-600 dark:text-slate-300">62.0 %</span></div>
+      <div class="border-t border-slate-100 dark:border-slate-800 pt-3 space-y-1.5">
+        <p class="text-[10px] font-bold text-slate-500 uppercase">Zonas</p>
+        <div class="flex items-center gap-2 text-[11px]"><span class="w-2 h-2 rounded-full bg-rose-500"></span><span>Cavitación (σ bajo)</span></div>
+        <div class="flex items-center gap-2 text-[11px]"><span class="w-2 h-2 rounded-full bg-emerald-500"></span><span>BEP (óptimo)</span></div>
+        <div class="flex items-center gap-2 text-[11px]"><span class="w-2 h-2 rounded-full bg-amber-500"></span><span>Sobrevelocidad</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═════════ VIEW: SIZING ═════════ -->
+<div id="view-sizing" class="view-panel hidden grid grid-cols-1 lg:grid-cols-2 gap-4">
+  <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 space-y-4 shadow-sm">
+    <h3 class="text-sm font-bold border-b border-slate-100 dark:border-slate-800 pb-2">Parámetros de diseño</h3>
+    <div><label class="text-xs font-semibold block mb-1.5">Altura neta H (m)</label><input type="number" id="calc-h" value="3.058" step="0.001" oninput="calculateSizing()" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm font-mono font-bold outline-none"></div>
+    <div><label class="text-xs font-semibold block mb-1.5">Caudal Q (L/min)</label><input type="number" id="calc-q" value="24.44" step="0.01" oninput="calculateSizing()" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm font-mono font-bold outline-none"></div>
+    <div><label class="text-xs font-semibold block mb-1.5">Eficiencia η (%)</label><input type="number" id="calc-eta" value="58.5" step="0.1" oninput="calculateSizing()" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm font-mono font-bold outline-none"></div>
+    <div><label class="text-xs font-semibold block mb-1.5">Velocidad n (rpm)</label><input type="number" id="calc-n" value="1300" step="10" oninput="calculateSizing()" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm font-mono font-bold outline-none"></div>
+  </div>
+
+  <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm flex flex-col">
+    <h3 class="text-sm font-bold border-b border-slate-100 dark:border-slate-800 pb-2 mb-3">Resultados</h3>
+    <div class="space-y-2 flex-1 text-xs">
+      <div class="flex justify-between border-b border-slate-100 dark:border-slate-800 pb-2"><span class="text-slate-500">P hidráulica</span><span id="res-ph" class="font-mono font-bold text-cyan-600 tabular">0 W</span></div>
+      <div class="flex justify-between border-b border-slate-100 dark:border-slate-800 pb-2"><span class="text-slate-500">P al eje</span><span id="res-pm" class="font-mono font-bold text-amber-600 tabular">0 W</span></div>
+      <div class="flex justify-between border-b border-slate-100 dark:border-slate-800 pb-2"><span class="text-slate-500">Velocidad específica n<sub>s</sub></span><span id="res-ns" class="font-mono font-bold text-emerald-600 tabular">0</span></div>
+      <div class="flex justify-between border-b border-slate-100 dark:border-slate-800 pb-2"><span class="text-slate-500">Diámetro D1</span><span id="res-d1" class="font-mono font-bold text-indigo-500 tabular">0</span></div>
+      <div class="flex justify-between border-b border-slate-100 dark:border-slate-800 pb-2"><span class="text-slate-500">Velocidad periférica U1</span><span id="res-u1" class="font-mono font-bold text-slate-700 dark:text-slate-300 tabular">0</span></div>
+      <div class="flex justify-between"><span class="text-slate-500">Clasificación</span><span id="res-class" class="font-mono font-bold text-brand-600">—</span></div>
+    </div>
+    <div class="bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-[11px] text-slate-500 mt-4"><i class="fa-solid fa-circle-info text-brand-500 mr-1"></i>n<sub>s</sub> &lt; 30 lenta · 30–80 normal · &gt; 80 rápida</div>
+  </div>
+</div>
+
+<!-- ═════════ VIEW: ALARMS ═════════ -->
+<div id="view-alarms" class="view-panel hidden">
+  <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm">
+    <div class="flex justify-between items-center flex-wrap gap-2 mb-4 border-b border-slate-100 dark:border-slate-800 pb-3">
+      <div>
+        <h3 class="text-sm font-bold">Registro de alarmas — ISA 18.2</h3>
+        <p class="text-xs text-slate-500">Secuencia de eventos y diagnóstico</p>
+      </div>
+      <div class="flex gap-2">
+        <select id="alarm-filter" onchange="renderAlarms()" class="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs font-semibold outline-none">
+          <option value="all">Todas</option>
+          <option value="critical">P1 · Crítica</option>
+          <option value="high">P2 · Alta</option>
+          <option value="warning">P3 · Media</option>
+          <option value="info">P4 · Info</option>
+        </select>
+        <button onclick="clearAlarms()" class="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700"><i class="fa-solid fa-trash mr-1"></i>Limpiar</button>
+      </div>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-xs">
+        <thead class="border-b border-slate-200 dark:border-slate-700 text-slate-500 text-[10px] uppercase font-bold">
+          <tr><th class="text-left py-2 px-2">Hora</th><th class="text-left py-2 px-2">Prioridad</th><th class="text-left py-2 px-2">Código</th><th class="text-left py-2 px-2">Descripción</th><th class="text-left py-2 px-2">Estado</th></tr>
+        </thead>
+        <tbody id="alarm-body" class="font-mono"><tr><td colspan="5" class="text-center py-6 text-slate-400">Sin eventos</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ═════════ VIEW: LABS ═════════ -->
+<div id="view-labs" class="view-panel hidden space-y-4">
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <button onclick="loadScenario('startup')" class="text-left bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm hover:border-brand-400 transition group">
+      <div class="w-12 h-12 bg-brand-50 dark:bg-brand-950 rounded-xl flex items-center justify-center text-brand-600 mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-play text-lg"></i></div>
+      <h4 class="font-bold text-sm mb-1">Arranque y sincronización</h4>
+      <p class="text-xs text-slate-500 mb-3 leading-relaxed">Rampa de apertura gradual + acople a red.</p>
+      <span class="text-[11px] font-bold text-brand-600">Ejecutar <i class="fa-solid fa-arrow-right ml-1"></i></span>
+    </button>
+
+    <button onclick="loadScenario('rejection')" class="text-left bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm hover:border-rose-400 transition group">
+      <div class="w-12 h-12 bg-rose-50 dark:bg-rose-950 rounded-xl flex items-center justify-center text-rose-600 mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-bolt-lightning text-lg"></i></div>
+      <h4 class="font-bold text-sm mb-1">Rechazo de carga</h4>
+      <p class="text-xs text-slate-500 mb-3 leading-relaxed">Sobrevelocidad transitoria al abrir 52-1.</p>
+      <span class="text-[11px] font-bold text-rose-600">Ejecutar <i class="fa-solid fa-arrow-right ml-1"></i></span>
+    </button>
+
+    <button onclick="loadScenario('cavitation')" class="text-left bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm hover:border-amber-400 transition group">
+      <div class="w-12 h-12 bg-amber-50 dark:bg-amber-950 rounded-xl flex items-center justify-center text-amber-600 mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-water text-lg"></i></div>
+      <h4 class="font-bold text-sm mb-1">Barrido de cavitación</h4>
+      <p class="text-xs text-slate-500 mb-3 leading-relaxed">Apertura baja + H alta → σ crítico.</p>
+      <span class="text-[11px] font-bold text-amber-600">Ejecutar <i class="fa-solid fa-arrow-right ml-1"></i></span>
+    </button>
+  </div>
+
+  <div id="scenario-log" class="bg-slate-900 rounded-2xl border border-slate-800 p-4 hidden">
+    <div class="flex justify-between items-center mb-2">
+      <h4 class="text-xs font-bold text-white font-mono">Registro del escenario</h4>
+      <button onclick="document.getElementById('scenario-log').classList.add('hidden')" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div id="scenario-log-body" class="font-mono text-[11px] text-slate-300 space-y-1 max-h-48 overflow-y-auto"></div>
+  </div>
+</div>
+
+</main>
+</div>
+
+<div id="toasts" class="fixed top-16 right-4 z-50 space-y-2 w-80 pointer-events-none"></div>
+
+<script>
+'use strict';
+
+/* ═══════════════════════════════════════════════════════════
+   CONFIG
+   ═══════════════════════════════════════════════════════════ */
+const CFG = {
+  rho:1000, g:9.81, H_design:3.058, Q_design:24.44, n_design:1300,
+  eta_max:0.62, gate_opt:65,
+  J:0.008, bFriction:0.0006, genEta:0.95,
+  tau_servo:0.8, dt:1/30,
+  rpm_max:2200, rpm_min:0,
+  npsh_r:1.5, sigma_crit:0.35,
+};
+const ST = {STOPPED:'stopped',STARTING:'starting',ISLANDED:'islanded',SYNCING:'syncing',GRID:'grid',TRIPPED:'tripped'};
+const MODE = {MANUAL:'manual',AUTO:'auto'};
+
+const S = {
+  state:ST.STOPPED, mode:MODE.MANUAL,
+  gateTarget:0, gateActual:0,
+  head:CFG.H_design, nRef:CFG.n_design,
+  rpm:0, flow:0, pHyd:0, pMech:0, pElec:0, eta:0,
+  Kp:2.5, Ti:1.2, Td:0.2, droop:4.0, integral:0, pTerm:0, iTerm:0, dTerm:0, govOut:0, lastErr:0,
+  gridFreq:50.0,
+  t:0, lastWall:0, accum:0, uptimeStart:Date.now(),
+  alarms:[], soundOn:true, soundCtx:null,
+  historian:{t:[],rpm:[],nref:[],flow:[],pElec:[],pMech:[],pHyd:[],gate:[],eta:[],head:[]},
+  _trackedFlags:{},
+};
+const HIST_MAX = 2000;
+
+/* ═══════════════════════════════════════════════════════════
+   UTILS
+   ═══════════════════════════════════════════════════════════ */
+const $=id=>document.getElementById(id);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const setText=(id,v)=>{const e=$(id);if(e)e.textContent=v;};
+
+function toast(msg,type='info',dur=3200){
+  const colors={info:'bg-brand-600',success:'bg-emerald-600',warning:'bg-amber-600',error:'bg-rose-600'};
+  const icons={info:'fa-circle-info',success:'fa-circle-check',warning:'fa-triangle-exclamation',error:'fa-circle-xmark'};
+  const el=document.createElement('div');
+  el.className=`toast ${colors[type]} text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-lg flex items-center gap-2.5 pointer-events-auto`;
+  el.innerHTML=`<i class="fa-solid ${icons[type]}"></i><span>${msg}</span>`;
+  $('toasts').appendChild(el);
+  setTimeout(()=>{el.style.transition='opacity .3s,transform .3s';el.style.opacity='0';el.style.transform='translateX(120%)';setTimeout(()=>el.remove(),300);},dur);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SOUND
+   ═══════════════════════════════════════════════════════════ */
+function toggleSound(){
+  S.soundOn = !S.soundOn;
+  $('btn-sound').innerHTML = S.soundOn ? '<i class="fa-solid fa-volume-low"></i>' : '<i class="fa-solid fa-volume-xmark"></i>';
+  if (S.soundOn) ensureAudio();
+  toast('Sonido ' + (S.soundOn ? 'activado' : 'silenciado'), 'info', 1500);
+}
+function ensureAudio(){
+  if (!S.soundCtx) { try { S.soundCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){} }
+  if (S.soundCtx && S.soundCtx.state === 'suspended') S.soundCtx.resume();
+}
+function beep(freq=880, dur=0.15, vol=0.05){
+  if (!S.soundOn) return;
+  ensureAudio();
+  if (!S.soundCtx) return;
+  const o = S.soundCtx.createOscillator();
+  const g = S.soundCtx.createGain();
+  o.frequency.value = freq; o.type = 'square';
+  g.gain.setValueAtTime(vol, S.soundCtx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, S.soundCtx.currentTime + dur);
+  o.connect(g); g.connect(S.soundCtx.destination);
+  o.start(); o.stop(S.soundCtx.currentTime + dur);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   ALARMS
+   ═══════════════════════════════════════════════════════════ */
+const PRIO = {
+  critical:{label:'P1',cls:'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-400',beep:1100,banner:true},
+  high:    {label:'P2',cls:'bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-400',beep:880,banner:true},
+  warning: {label:'P3',cls:'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400',beep:660,banner:false},
+  info:    {label:'P4',cls:'bg-brand-100 text-brand-700 dark:bg-brand-950 dark:text-brand-400',beep:440,banner:false},
+};
+function raiseAlarm(sev, code, msg){
+  const key = code + '|' + msg;
+  if (S._trackedFlags[key]) return;
+  S._trackedFlags[key] = true;
+  const t = new Date();
+  const a = {time:t.toTimeString().slice(0,8), sev, code, msg, ack:false, id:Math.random()};
+  S.alarms.unshift(a);
+  if (S.alarms.length > 300) S.alarms.pop();
+  renderAlarms(); updateAlarmBadge();
+  if (PRIO[sev]) beep(PRIO[sev].beep, sev==='critical'?0.25:0.15);
+  if (PRIO[sev] && PRIO[sev].banner) {
+    $('alarm-banner').classList.remove('hidden');
+    setText('alarm-banner-msg', `[${code}] ${msg}`);
+  }
+  if (sev==='critical') toast(msg,'error',5000);
+  else if (sev==='high') toast(msg,'warning',4000);
+}
+function clearAlarmFlag(code, msg){ S._trackedFlags[code+'|'+msg] = false; }
+function acknowledgeAllAlarms(){
+  S.alarms.forEach(a=>a.ack=true);
+  $('alarm-banner').classList.add('hidden');
+  renderAlarms(); updateAlarmBadge();
+}
+function updateAlarmBadge(){
+  const unack = S.alarms.filter(a=>!a.ack).length;
+  const b=$('alarm-count');
+  b.textContent=unack;
+  b.className = unack>0 ? 'ml-auto bg-rose-500 text-white text-[10px] font-bold px-1.5 rounded-full min-w-[20px] text-center' : 'ml-auto bg-slate-700 text-slate-300 text-[10px] font-bold px-1.5 rounded-full min-w-[20px] text-center';
+}
+function renderAlarms(){
+  const f=$('alarm-filter').value; const b=$('alarm-body');
+  const list=S.alarms.filter(a=>f==='all'||a.sev===f);
+  if(!list.length){b.innerHTML='<tr><td colspan="5" class="text-center py-6 text-slate-400">Sin eventos</td></tr>';return;}
+  b.innerHTML=list.map(a=>{
+    const p=PRIO[a.sev]||PRIO.info;
+    return `<tr class="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+      <td class="py-2 px-2 tabular">${a.time}</td>
+      <td class="py-2 px-2"><span class="p-chip ${p.cls}">${p.label}</span></td>
+      <td class="py-2 px-2 font-bold">${a.code}</td>
+      <td class="py-2 px-2">${a.msg}</td>
+      <td class="py-2 px-2 ${a.ack?'text-emerald-600':'text-amber-600'}">${a.ack?'✓':'⏳'}</td>
+    </tr>`;
+  }).join('');
+}
+function clearAlarms(){
+  S.alarms=[]; S._trackedFlags={};
+  renderAlarms(); updateAlarmBadge(); $('alarm-banner').classList.add('hidden');
+}
+
+/* ═══════════════════════════════════════════════════════════
+   THEME
+   ═══════════════════════════════════════════════════════════ */
+function toggleTheme(){
+  const html=document.documentElement;
+  const dark=html.classList.toggle('dark');
+  localStorage.setItem('francis-theme',dark?'dark':'light');
+  $('theme-icon').className=dark?'fa-solid fa-sun':'fa-solid fa-moon';
+  Object.values(charts).forEach(c=>{try{c.destroy();}catch(e){}});
+  for(const k in charts) delete charts[k];
+  initMiniCharts();
+  if(currentView==='trends') initMainCharts();
+  if(currentView==='hill') drawHillChart();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   NAVIGATION
+   ═══════════════════════════════════════════════════════════ */
+const VIEWS=['overview','3d','pid','hmi','trends','hill','sizing','alarms','labs'];
+const TITLES={overview:'Monitor general','3d':'Vista 3D — Rodete Francis',pid:'P&ID · Unidad 1',hmi:'Gobernador HMI',trends:'Tendencias',hill:'Hill chart',sizing:'Dimensionamiento',alarms:'Alarmas y eventos',labs:'Prácticas de laboratorio'};
+let currentView='overview';
+function switchView(name){
+  if(!VIEWS.includes(name)) return;
+  VIEWS.forEach(v=>{const e=$('view-'+v);if(e)e.classList.toggle('hidden',v!==name);});
+  setText('view-title',TITLES[name]);
+  document.querySelectorAll('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.nav===name));
+  currentView=name;
+  if(name==='3d'&&!threeInit) init3D();
+  if(name==='trends'&&!mainChartsInit) initMainCharts();
+  if(name==='hill') drawHillChart();
+  if(name==='alarms') renderAlarms();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   HILL EFFICIENCY MAP
+   ═══════════════════════════════════════════════════════════ */
+function hillEfficiency(qr, nr){
+  const dq=qr-1, dn=nr-1;
+  const e = 1 - 0.35*dq*dq - 0.20*dn*dn - 0.08*dq*dn;
+  return clamp(e, 0.05, 1);
+}
+function drawHillChart(){
+  const canvas = $('hill-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  const xMin=0.3, xMax=1.5, yMin=0.6, yMax=1.4;
+  const img = ctx.createImageData(w, h);
+  for (let py=0; py<h; py++){
+    for (let px=0; px<w; px++){
+      const qr = xMin + (px/w)*(xMax-xMin);
+      const nr = yMax - (py/h)*(yMax-yMin);
+      const eta = hillEfficiency(qr, nr);
+      const [r,g,b] = viridis(eta);
+      const i = (py*w+px)*4;
+      img.data[i]=r; img.data[i+1]=g; img.data[i+2]=b; img.data[i+3]=255;
+    }
+  }
+  ctx.putImageData(img,0,0);
+  ctx.strokeStyle='rgba(255,255,255,0.4)'; ctx.lineWidth=1;
+  for (const lvl of [0.4,0.6,0.75,0.85,0.92]){
+    ctx.beginPath();
+    for (let px=0;px<w-2;px+=2){
+      for (let py=0;py<h-2;py+=2){
+        const qr=xMin+(px/w)*(xMax-xMin), nr=yMax-(py/h)*(yMax-yMin);
+        const qr2=xMin+((px+2)/w)*(xMax-xMin), nr2=yMax-((py+2)/h)*(yMax-yMin);
+        const e1=hillEfficiency(qr,nr), e2=hillEfficiency(qr2,nr2);
+        if ((e1<lvl)!==(e2<lvl)) ctx.rect(px,py,2,2);
+      }
+    }
+    ctx.stroke();
+  }
+  ctx.fillStyle='rgba(148,163,184,0.95)';
+  ctx.font='11px JetBrains Mono, monospace';
+  ctx.fillText('Q/Qd', w-40, h-6);
+  ctx.save(); ctx.translate(14, 20); ctx.rotate(-Math.PI/2); ctx.fillText('n/nd', 0, 0); ctx.restore();
+
+  const qr = clamp(S.flow/CFG.Q_design, xMin, xMax);
+  const nr = clamp(S.rpm/CFG.n_design, yMin, yMax);
+  const px = ((qr-xMin)/(xMax-xMin))*w;
+  const py = ((yMax-nr)/(yMax-yMin))*h;
+  ctx.beginPath(); ctx.arc(px,py,10,0,2*Math.PI); ctx.fillStyle='rgba(255,255,255,0.95)'; ctx.fill();
+  ctx.strokeStyle='#0ea5e9'; ctx.lineWidth=3; ctx.stroke();
+  ctx.beginPath(); ctx.arc(px,py,4,0,2*Math.PI); ctx.fillStyle='#0ea5e9'; ctx.fill();
+
+  setText('hill-qr', (S.flow/CFG.Q_design).toFixed(2));
+  setText('hill-nr', (S.rpm/CFG.n_design).toFixed(2));
+  setText('hill-eta', S.eta.toFixed(1) + ' %');
+}
+function viridis(t){
+  t = clamp(t,0,1);
+  const stops=[[68,1,84],[59,82,139],[33,145,140],[94,201,98],[253,231,37]];
+  const segs = stops.length-1;
+  const idx = Math.floor(t*segs);
+  const f = t*segs - idx;
+  const c1 = stops[Math.min(idx,segs)];
+  const c2 = stops[Math.min(idx+1,segs)];
+  return [Math.round(c1[0]+(c2[0]-c1[0])*f), Math.round(c1[1]+(c2[1]-c1[1])*f), Math.round(c1[2]+(c2[2]-c1[2])*f)];
+}
+
+/* ═══════════════════════════════════════════════════════════
+   PHYSICS ENGINE
+   ═══════════════════════════════════════════════════════════ */
+function stepPhysics(dt){
+  if (S.state===ST.TRIPPED){
+    S.rpm = Math.max(0, S.rpm - 300*dt);
+    S.gateTarget = 0;
+    S.gateActual += (0 - S.gateActual) * Math.min(1, dt/CFG.tau_servo);
+    S.flow *= Math.max(0, 1 - 2*dt);
+    S.pMech = 0; S.pElec = 0; S.eta = 0; S.pHyd = 0;
+    return;
+  }
+  if (S.state===ST.STOPPED){
+    S.rpm = Math.max(0, S.rpm - 200*dt);
+    S.gateActual += (0 - S.gateActual) * Math.min(1, dt/CFG.tau_servo);
+    S.flow *= Math.max(0, 1 - 2*dt);
+    S.pMech = 0; S.pElec = 0; S.eta = 0; S.pHyd = 0;
+    return;
+  }
+
+  // Governor (AUTO mode)
+  if (S.mode===MODE.AUTO && S.state!==ST.GRID){
+    const err = S.nRef - S.rpm;
+    S.pTerm = S.Kp * err;
+    const govRaw = S.pTerm + S.iTerm;
+    if (Math.abs(govRaw) < 45){
+      S.integral += err * dt;
+      const iMax = 50 / Math.max(0.1, S.Kp);
+      S.integral = clamp(S.integral, -iMax, iMax);
+    }
+    S.iTerm = (S.Kp / Math.max(0.05, S.Ti)) * S.integral;
+    S.dTerm = S.Kp * S.Td * (err - S.lastErr) / dt;
+    S.lastErr = err;
+    const droopTerm = (S.droop/100) * (S.nRef - CFG.n_design) * 0.5;
+    S.govOut = clamp(S.pTerm + S.iTerm + S.dTerm + droopTerm, -50, 50);
+    S.gateTarget = clamp(CFG.gate_opt + S.govOut, 0, 100);
+  }
+
+  // Servo dynamics
+  const servoRate = Math.min(1, dt / CFG.tau_servo);
+  S.gateActual += (S.gateTarget - S.gateActual) * servoRate;
+  S.gateActual = clamp(S.gateActual, 0, 100);
+
+  // Flow
+  const qTarget = CFG.Q_design * (S.gateActual / CFG.gate_opt) * Math.sqrt(S.head / CFG.H_design);
+  S.flow += (qTarget - S.flow) * Math.min(1, dt * 3);
+
+  // Efficiency
+  const qr = Math.max(0.05, S.flow / CFG.Q_design);
+  const nr = Math.max(0.5, S.rpm / CFG.n_design);
+  const etaTarget = CFG.eta_max * hillEfficiency(qr, nr);
+  S.eta += (etaTarget - S.eta) * Math.min(1, dt * 4);
+
+  // Powers
+  const Q_m3s = S.flow / 60000;
+  S.pHyd = CFG.rho * CFG.g * Q_m3s * S.head;
+  S.pMech = S.pHyd * S.eta;
+
+  const omega = S.rpm * 2 * Math.PI / 60;
+
+  // Speed dynamics
+  if (S.state===ST.GRID){
+    const syncRpm = CFG.n_design * (S.gridFreq / 50);
+    S.rpm += (syncRpm - S.rpm) * Math.min(1, dt * 15) + (Math.random()-0.5)*0.15;
+    S.pElec = S.pMech * CFG.genEta;
+  } else {
+    const T_hyd = omega > 0.1 ? S.pMech / omega : 0;
+    const T_load = CFG.bFriction * omega;
+    const dOmega = (T_hyd - T_load) / CFG.J;
+    S.rpm = clamp(S.rpm + dOmega * 60/(2*Math.PI) * dt, CFG.rpm_min, CFG.rpm_max);
+    S.pElec = (S.state===ST.ISLANDED) ? S.pMech * CFG.genEta : 0;
+  }
+
+  // Protections
+  if (S.rpm > CFG.rpm_max*0.9 && S.state!==ST.GRID){
+    raiseAlarm('critical','OS-101','Sobrevelocidad: '+S.rpm.toFixed(0)+' rpm');
+  } else if (S.rpm < CFG.rpm_max*0.85){
+    clearAlarmFlag('OS-101','Sobrevelocidad: '+S.rpm.toFixed(0)+' rpm');
+  }
+  const sigma = (S.head > 0 && S.flow > 0) ? (10.33 - 0.2) / S.head : 999;
+  if (sigma < CFG.sigma_crit && S.gateActual > 5 && S.gateActual < 20){
+    raiseAlarm('warning','CAV-201','Cavitación probable (σ='+sigma.toFixed(2)+')');
+  }
+  if (S.state===ST.ISLANDED && S.flow > CFG.Q_design*0.9 && S.gateActual < 25){
+    raiseAlarm('high','WH-301','Golpe de ariete: cierre rápido con caudal alto');
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   UI UPDATE
+   ═══════════════════════════════════════════════════════════ */
+function updateUI(){
+  setText('kpi-rpm', S.rpm.toFixed(1));
+  setText('kpi-power', S.pElec.toFixed(2));
+  setText('kpi-flow', S.flow.toFixed(2));
+  setText('kpi-eta', S.eta.toFixed(1));
+  setText('kpi-pmech', S.pMech.toFixed(2)+' W');
+  setText('kpi-gate', S.gateActual.toFixed(1)+' %');
+  setText('kpi-head', S.head.toFixed(3));
+  setText('kpi-phyd', S.pHyd.toFixed(2)+' W');
+  const sigma = S.head>0 ? (10.33-0.2)/S.head : 999;
+  setText('kpi-sigma', sigma<10?sigma.toFixed(2):'—');
+  setText('top-rpm', S.rpm.toFixed(0));
+  setText('top-power', S.pElec.toFixed(1));
+  setText('top-flow', S.flow.toFixed(1));
+  setText('top-eta', S.eta.toFixed(0));
+  setText('kpi-nref', S.nRef);
+  setText('kpi-state', ({stopped:'Detenida',starting:'Arrancando',islanded:'En isla',syncing:'Sincronizando',grid:'Acoplada',tripped:'Disparo'})[S.state]);
+  setText('kpi-gov', S.mode==='auto'?'Auto (PID)':'Manual');
+  $('bar-rpm').style.width = clamp(S.rpm/CFG.rpm_max*100,0,100)+'%';
+
+  setText('hmi-servo', S.gateActual.toFixed(1)+' %');
+  setText('hmi-error', (S.nRef-S.rpm).toFixed(1));
+  setText('hmi-out', S.govOut.toFixed(1));
+  setText('servo-pos', S.gateActual.toFixed(1)+' %');
+  $('bar-servo').style.width = S.gateActual+'%';
+  setText('pid-p', S.pTerm.toFixed(2));
+  setText('pid-i', S.iTerm.toFixed(2));
+  setText('pid-d', S.dTerm.toFixed(2));
+  setText('pid-out', S.govOut.toFixed(2));
+
+  setText('svg-rpm', S.rpm.toFixed(0)+' RPM');
+  setText('svg-power', S.pElec.toFixed(2)+' W');
+  setText('svg-head', S.head.toFixed(2)+' m');
+  setText('pid-flow', S.flow.toFixed(1)+' L/min');
+  setText('tag-ft', S.flow.toFixed(1)+' L/m');
+  setText('tag-pt', (S.head*0.0981).toFixed(2)+' bar');
+  setText('tag-pi', (S.head*0.0981).toFixed(2)+' bar');
+  setText('tag-jt', Math.round(S.pMech/ (S.rpm*2*Math.PI/60||1)) +' N·m');
+  setText('tag-vt', S.rpm.toFixed(0)+' rpm');
+  setText('tag-kw', S.pElec.toFixed(1)+' W');
+  const fl = $('flow-line-1'); if (fl) fl.classList.toggle('paused', S.flow<1);
+  const runner = $('svg-runner');
+  if (runner) runner.setAttribute('transform', `rotate(${(S.rpm*6*S.t)%360} 440 295)`);
+
+  setText('3d-rpm', S.rpm.toFixed(0)+' rpm');
+  setText('3d-servo', S.gateActual.toFixed(1)+' %');
+  setText('3d-flow', S.flow.toFixed(1)+' L/min');
+  const torque = S.rpm>1 ? S.pMech / (S.rpm*2*Math.PI/60) : 0;
+  setText('3d-torque', Math.round(torque)+' N·m');
+
+  // Synchroscope
+  const df = (S.rpm - CFG.n_design*(S.gridFreq/50)) / 60;
+  setText('synchro-df', 'Δf: '+(df>=0?'+':'')+df.toFixed(2));
+  setText('synchro-dphi', 'Δφ: '+((S.t*df*360)%360).toFixed(0)+'°');
+  const needle = $('synchro-needle');
+  if (needle) needle.style.transform = `rotate(${(S.t*df*360)%360}deg)`;
+
+  // Breaker state
+  setText('pid-breaker', S.state===ST.GRID?'CLOSED':'OPEN');
+  setText('pid-miv', S.gateActual>1?'OPEN':'CLOSED');
+}
+
+/* ═══════════════════════════════════════════════════════════
+   CONTROLS
+   ═══════════════════════════════════════════════════════════ */
+function setOpening(v){
+  S.gateTarget = clamp(parseFloat(v),0,100);
+  const qa=$('quick-a'), ha=$('hmi-a');
+  if(qa) qa.value=v; if(ha) ha.value=v;
+  setText('quick-a-val', S.gateTarget.toFixed(1)+' %');
+  setText('hmi-a-val', S.gateTarget.toFixed(1)+' %');
+}
+function setSpeedRef(v){
+  S.nRef = clamp(parseFloat(v),800,1800);
+  const qn=$('quick-n'), hn=$('hmi-n');
+  if(qn) qn.value=v; if(hn) hn.value=v;
+  setText('quick-n-val', Math.round(S.nRef)+' rpm');
+  setText('hmi-n-val', Math.round(S.nRef)+' rpm');
+}
+function setHead(v){
+  S.head = clamp(parseFloat(v),0.5,20);
+  const qh=$('quick-h'), hh=$('hmi-h');
+  if(qh) qh.value=v; if(hh) hh.value=v;
+  setText('quick-h-val', S.head.toFixed(3)+' m');
+  setText('hmi-h-val', S.head.toFixed(3)+' m');
+}
+function setPID(which, val){
+  const v=parseFloat(val); if(isNaN(v)) return;
+  if(which==='Kp') S.Kp=v;
+  else if(which==='Ti') S.Ti=Math.max(0.05,v);
+  else if(which==='Td') S.Td=Math.max(0,v);
+  else if(which==='droop') S.droop=clamp(v,0,15);
+  localStorage.setItem('francis-pid',JSON.stringify({Kp:S.Kp,Ti:S.Ti,Td:S.Td,droop:S.droop}));
+  toast(`PID ${which} = ${v}`,'info',1500);
+}
+function setMode(m){
+  S.mode=m;
+  $('btn-mode-manual').classList.toggle('active',m==='manual');
+  $('btn-mode-auto').classList.toggle('active',m==='auto');
+  const badge=$('mode-badge');
+  if (m==='auto'){
+    badge.className='hidden md:inline-flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 text-[10px] font-bold px-2.5 py-1 rounded-full';
+    badge.innerHTML='<i class="fa-solid fa-robot"></i> Auto';
+    S.integral = 0; S.iTerm = 0; S.lastErr = 0;
+  } else {
+    badge.className='hidden md:inline-flex items-center gap-1.5 bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800 text-[10px] font-bold px-2.5 py-1 rounded-full';
+    badge.innerHTML='<i class="fa-solid fa-hand"></i> Manual';
+  }
+  toast('Modo '+(m==='auto'?'automático':'manual'),'info',1500);
+}
+function startPlant(){
+  if (S.state===ST.TRIPPED){ toast('Rearme requerido','warning'); return; }
+  if (S.state!==ST.STOPPED){ toast('Ya está en marcha','info'); return; }
+  S.state=ST.STARTING;
+  setStateBadge();
+  raiseAlarm('info','EV-001','Arranque iniciado');
+  toast('Arrancando...','success');
+  setTimeout(()=>{ if(S.state===ST.STARTING){S.state=ST.ISLANDED; setStateBadge();} }, 3000);
+}
+function stopPlant(){
+  if (S.state===ST.STOPPED) return;
+  S.state=ST.STOPPED;
+  S.gateTarget=0; S.integral=0; S.iTerm=0;
+  setStateBadge();
+  raiseAlarm('info','EV-002','Parada normal');
+  toast('Detenida','info');
+}
+function toggleTrip(){
+  if (S.state!==ST.TRIPPED){
+    S.state=ST.TRIPPED; S.gateTarget=0; S.integral=0;
+    raiseAlarm('critical','TRIP-000','Disparo manual');
+    toast('¡DISPARO!','error',4000);
+    setStateBadge();
+  } else {
+    S.state=ST.STOPPED; S.gateTarget=0; S.gateActual=0; S.integral=0;
+    raiseAlarm('info','TRIP-001','Rearme');
+    toast('Rearmado','success');
+    setStateBadge();
+  }
+}
+function setStateBadge(){
+  const b=$('plant-badge');
+  const map={
+    stopped:{cls:'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700',html:'<span class="status-dot bg-slate-400"></span> Detenida'},
+    starting:{cls:'bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800',html:'<span class="status-dot bg-amber-500 pulse-dot"></span> Arrancando'},
+    islanded:{cls:'bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800',html:'<span class="status-dot bg-emerald-500 pulse-dot"></span> En isla'},
+    syncing:{cls:'bg-brand-50 dark:bg-brand-950 text-brand-700 dark:text-brand-400 border-brand-200 dark:border-brand-800',html:'<span class="status-dot bg-brand-500 pulse-dot"></span> Sincronizando'},
+    grid:{cls:'bg-brand-50 dark:bg-brand-950 text-brand-700 dark:text-brand-400 border-brand-200 dark:border-brand-800',html:'<span class="status-dot bg-brand-500 pulse-dot"></span> Acoplada'},
+    tripped:{cls:'bg-rose-50 dark:bg-rose-950 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-800',html:'<span class="status-dot bg-rose-500 pulse-dot"></span> Disparo'},
+  };
+  const c=map[S.state]||map.stopped;
+  b.className=`hidden md:inline-flex items-center gap-1.5 border text-[10px] font-bold px-2.5 py-1 rounded-full ${c.cls}`;
+  b.innerHTML=c.html;
+  const tb=$('btn-trip');
+  if (S.state===ST.TRIPPED){
+    tb.className='bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-2 rounded-lg shadow-sm flex items-center gap-1.5';
+    tb.innerHTML='<i class="fa-solid fa-rotate-left"></i><span class="hidden sm:inline">Rearmar</span>';
+  } else {
+    tb.className='bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold px-3 py-2 rounded-lg shadow-sm flex items-center gap-1.5';
+    tb.innerHTML='<i class="fa-solid fa-triangle-exclamation"></i><span class="hidden sm:inline">Disparo</span>';
+  }
+}
+function attemptSync(){
+  if (S.state!==ST.ISLANDED){ toast('Debe estar en isla','warning'); return; }
+  if (Math.abs(S.rpm - CFG.n_design) > 40){ toast('Velocidad fuera de rango (±40 rpm)','warning'); return; }
+  S.state=ST.SYNCING; setStateBadge();
+  toast('Sincronizando...','info');
+  setTimeout(()=>{
+    S.state=ST.GRID; setStateBadge();
+    raiseAlarm('info','SYNC-001','Acople a red exitoso');
+    toast('Acoplado','success');
+  }, 1500);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   CSV & SIZING
+   ═══════════════════════════════════════════════════════════ */
+function exportCSV(){
+  const rows = [['t_s','rpm','flow_Lmin','p_hyd_W','p_mech_W','p_elec_W','eta_pct','gate_pct','head_m']];
+  const H = S.historian;
+  for (let i = 0; i < H.t.length; i++){
+    rows.push([H.t[i].toFixed(2), H.rpm[i].toFixed(1), H.flow[i].toFixed(2), H.pHyd[i].toFixed(2), H.pMech[i].toFixed(2), H.pElec[i].toFixed(2), H.eta[i].toFixed(1), H.gate[i].toFixed(1), H.head[i].toFixed(3)]);
+  }
+  const csv = rows.map(r => r.join(',')).join('\n');
+  const blob = new Blob([csv],{type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download=`francis_${Date.now()}.csv`; a.click();
+  URL.revokeObjectURL(url);
+  toast('CSV exportado (' + (rows.length-1) + ' muestras)','success');
+}
+function calculateSizing(){
+  const H = parseFloat($('calc-h').value) || CFG.H_design;
+  const Q_Lmin = parseFloat($('calc-q').value) || CFG.Q_design;
+  const eta = (parseFloat($('calc-eta').value) || 58.5) / 100;
+  const n = parseFloat($('calc-n').value) || CFG.n_design;
+  const Q_m3s = Q_Lmin / 60000;
+  const Ph = CFG.rho * CFG.g * Q_m3s * H;
+  const Pm = Ph * eta;
+  const ns = n * Math.sqrt(Pm) / Math.pow(H, 1.25);
+  const D1 = 84.5 * Math.sqrt(H) / n;
+  const U1 = Math.PI * D1 * n / 60;
+  setText('res-ph', Ph.toFixed(2) + ' W');
+  setText('res-pm', Pm.toFixed(2) + ' W');
+  setText('res-ns', ns.toFixed(1) + ' rpm');
+  setText('res-d1', D1.toFixed(3) + ' m');
+  setText('res-u1', U1.toFixed(2) + ' m/s');
+  let cls='—';
+  if (ns<30) cls='Francis lenta';
+  else if (ns<80) cls='Francis normal';
+  else if (ns<150) cls='Francis rápida';
+  else cls='Fuera de rango Francis';
+  setText('res-class', cls);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   CHARTS
+   ═══════════════════════════════════════════════════════════ */
+const charts={};
+let mainChartsInit=false, lastChartUpdate=0;
+function chartColors(){
+  const d=document.documentElement.classList.contains('dark');
+  return {text:d?'#94a3b8':'#64748b',grid:d?'#1e293b':'#f1f5f9'};
+}
+function makeChart(el, series, height, withCursor=false){
+  const c=chartColors();
+  const opts={
+    width:$(el).clientWidth, height,
+    scales:{x:{time:false}},
+    series:[{label:'t'}, ...series.map(s=>({label:s.label, stroke:s.color, width:s.width||2, fill:s.fill? s.color+'20':undefined, points:{show:false}}))],
+    axes:[
+      {stroke:c.text, grid:{stroke:c.grid}, font:'10px Inter'},
+      {stroke:c.text, grid:{stroke:c.grid}, font:'10px Inter'},
+    ],
+    legend:{show:true, font:'11px Inter'},
+    cursor: withCursor ? {show:true, drag:{x:true,y:false}, points:{show:false}} : {show:false},
+  };
+  const data=[[]]; series.forEach(()=>data.push([]));
+  return new uPlot(opts, data, $(el));
+}
+function initMiniCharts(){
+  if ($('mini-rpm') && !charts.miniRpm) charts.miniRpm=makeChart('mini-rpm',[{label:'RPM',color:'#0284c7',fill:true}],128);
+  if ($('mini-power') && !charts.miniPower) charts.miniPower=makeChart('mini-power',[{label:'W',color:'#d97706',fill:true}],128);
+}
+function initMainCharts(){
+  if (mainChartsInit) return;
+  if ($('main-rpm') && !charts.mainRpm) charts.mainRpm=makeChart('main-rpm',[{label:'RPM',color:'#0284c7',fill:true},{label:'Consigna',color:'#8b5cf6',width:1.5}],256,true);
+  if ($('main-power') && !charts.mainPower) charts.mainPower=makeChart('main-power',[{label:'P hid',color:'#06b6d4',fill:true},{label:'P elec',color:'#d97706',fill:true}],256,true);
+  if ($('main-flow') && !charts.mainFlow) charts.mainFlow=makeChart('main-flow',[{label:'Caudal L/min',color:'#0ea5e9'},{label:'Apertura %',color:'#f59e0b'}],192,true);
+  mainChartsInit=true;
+}
+function updateCharts(){
+  const now=performance.now()/1000;
+  if (now-lastChartUpdate < 1/15) return;
+  lastChartUpdate=now;
+  const H=S.historian;
+  H.t.push(S.t); H.rpm.push(S.rpm); H.nref.push(S.nRef); H.flow.push(S.flow);
+  H.pElec.push(S.pElec); H.pMech.push(S.pMech); H.pHyd.push(S.pHyd);
+  H.gate.push(S.gateActual); H.eta.push(S.eta); H.head.push(S.head);
+  if (H.t.length>HIST_MAX){ for (const k in H) H[k].shift(); }
+  const x=H.t;
+  try{
+    if (charts.miniRpm) charts.miniRpm.setData([x,H.rpm]);
+    if (charts.miniPower) charts.miniPower.setData([x,H.pElec]);
+    if (charts.mainRpm) charts.mainRpm.setData([x,H.rpm,H.nref]);
+    if (charts.mainPower) charts.mainPower.setData([x,H.pHyd,H.pElec]);
+    if (charts.mainFlow) charts.mainFlow.setData([x,H.flow,H.gate]);
+  }catch(e){}
+}
+
+/* ═══════════════════════════════════════════════════════════
+   3D SCENE
+   ═══════════════════════════════════════════════════════════ */
+let monitorRenderer, monitorScene, monitorCamera, monitorRunner;
+let renderer, scene, camera, controls, runnerGroup, vanesGroup, casingMesh, particlesMesh, axesHelper, generatorGroup;
+let threeInit=false;
+
+function buildRunner(){
+  const g=new THREE.Group();
+  const hub=new THREE.Mesh(new THREE.CylinderGeometry(0.45,0.55,0.9,24), new THREE.MeshStandardMaterial({color:0x475569,metalness:.85,roughness:.35}));
+  g.add(hub);
+  const N=13;
+  for(let i=0;i<N;i++){
+    const a=(i/N)*Math.PI*2;
+    const b=new THREE.Mesh(new THREE.BoxGeometry(0.06,0.75,0.85), new THREE.MeshStandardMaterial({color:0x0284c7,metalness:.7,roughness:.35,side:THREE.DoubleSide}));
+    b.position.set(Math.cos(a)*0.95,0.05,Math.sin(a)*0.95);
+    b.rotation.y=-a; b.rotation.x=0.35; g.add(b);
+  }
+  const crown=new THREE.Mesh(new THREE.TorusGeometry(1.15,0.09,12,48), new THREE.MeshStandardMaterial({color:0x94a3b8,metalness:.8,roughness:.3}));
+  crown.rotation.x=Math.PI/2; crown.position.y=0.5; g.add(crown);
+  const band=crown.clone(); band.position.y=-0.4; g.add(band);
+  return g;
+}
+function buildVanes(){
+  const g=new THREE.Group(); const N=12;
+  for(let i=0;i<N;i++){
+    const a=(i/N)*Math.PI*2;
+    const v=new THREE.Mesh(new THREE.BoxGeometry(0.05,0.45,0.35), new THREE.MeshStandardMaterial({color:0xfbbf24,metalness:.6,roughness:.4}));
+    v.position.set(Math.cos(a)*1.55,0,Math.sin(a)*1.55);
+    v.rotation.y=-a+0.5; g.add(v);
+  }
+  return g;
+}
+function buildGenerator(){
+  const g = new THREE.Group();
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.12,1.4,12), new THREE.MeshStandardMaterial({color:0x64748b,metalness:.9}));
+  shaft.position.y = 1.5; g.add(shaft);
+  const rotor = new THREE.Mesh(new THREE.CylinderGeometry(0.9,0.9,0.9,24), new THREE.MeshStandardMaterial({color:0xf59e0b,metalness:.6}));
+  rotor.position.y = 2.4; g.add(rotor);
+  return g;
+}
+function initMonitor3D(){
+  const el=$('monitor-3d'); if(!el) return;
+  monitorScene=new THREE.Scene();
+  monitorScene.background=new THREE.Color(0x0f172a);
+  const w=el.clientWidth, h=el.clientHeight;
+  monitorCamera=new THREE.PerspectiveCamera(40,w/h,0.1,100);
+  monitorCamera.position.set(3,2.4,4); monitorCamera.lookAt(0,0,0);
+  monitorRenderer=new THREE.WebGLRenderer({antialias:true});
+  monitorRenderer.setSize(w,h); monitorRenderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  el.appendChild(monitorRenderer.domElement);
+  monitorScene.add(new THREE.AmbientLight(0xffffff,.55));
+  const dl=new THREE.DirectionalLight(0xffffff,1); dl.position.set(5,8,5); monitorScene.add(dl);
+  const pl=new THREE.PointLight(0x06b6d4,.7,15); pl.position.set(-3,2,-2); monitorScene.add(pl);
+  monitorRunner=buildRunner(); monitorScene.add(monitorRunner);
+  const casing=new THREE.Mesh(new THREE.TorusGeometry(1.7,0.14,12,48), new THREE.MeshStandardMaterial({color:0x38bdf8,transparent:true,opacity:.25,wireframe:true}));
+  casing.rotation.x=Math.PI/2; monitorScene.add(casing);
+  (function loop(){
+    requestAnimationFrame(loop);
+    monitorRunner.rotation.y += (S.rpm/60)*0.033;
+    monitorRenderer.render(monitorScene,monitorCamera);
+  })();
+}
+function init3D(){
+  const el=$('full-3d'); if(!el) return;
+  scene=new THREE.Scene();
+  scene.background=new THREE.Color(0x0f172a);
+  scene.fog=new THREE.Fog(0x0f172a,12,25);
+  const w=el.clientWidth, h=el.clientHeight;
+  camera=new THREE.PerspectiveCamera(45,w/h,0.1,100);
+  camera.position.set(4.5,3.5,6.5);
+  renderer=new THREE.WebGLRenderer({antialias:true});
+  renderer.setSize(w,h); renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  el.appendChild(renderer.domElement);
+  controls=new THREE.OrbitControls(camera,renderer.domElement);
+  controls.enableDamping=true; controls.dampingFactor=.06;
+  controls.autoRotate=true; controls.autoRotateSpeed=1.2;
+  controls.minDistance=3; controls.maxDistance=18;
+  scene.add(new THREE.AmbientLight(0xffffff,.5));
+  const dl=new THREE.DirectionalLight(0xffffff,1); dl.position.set(5,10,7); scene.add(dl);
+  const pl=new THREE.PointLight(0x06b6d4,.8,25); pl.position.set(-5,3,-5); scene.add(pl);
+  const pl2=new THREE.PointLight(0xfbbf24,.4,15); pl2.position.set(3,-2,4); scene.add(pl2);
+  casingMesh=new THREE.Mesh(new THREE.TorusGeometry(2.1,0.22,12,60), new THREE.MeshStandardMaterial({color:0x38bdf8,transparent:true,opacity:.22,wireframe:true}));
+  casingMesh.rotation.x=Math.PI/2; scene.add(casingMesh);
+  vanesGroup=buildVanes(); scene.add(vanesGroup);
+  runnerGroup=buildRunner(); scene.add(runnerGroup);
+  generatorGroup = buildGenerator(); scene.add(generatorGroup);
+  const draft=new THREE.Mesh(new THREE.ConeGeometry(1.3,1.6,20,1,true), new THREE.MeshStandardMaterial({color:0x64748b,transparent:true,opacity:.32,side:THREE.DoubleSide}));
+  draft.position.y=-1.3; scene.add(draft);
+  const grid=new THREE.GridHelper(14,28,0x1e293b,0x1e293b); grid.position.y=-2.4; scene.add(grid);
+  const N=500, pos=new Float32Array(N*3);
+  for (let i=0; i<N*3; i+=3) {
+    const a = Math.random()*Math.PI*2, r = 1.4+Math.random()*0.9;
+    pos[i]=Math.cos(a)*r; pos[i+1]=(Math.random()-.5)*1.4; pos[i+2]=Math.sin(a)*r;
+  }
+  const pGeo=new THREE.BufferGeometry();
+  pGeo.setAttribute('position', new THREE.BufferAttribute(pos,3));
+  particlesMesh=new THREE.Points(pGeo, new THREE.PointsMaterial({color:0x06b6d4,size:.07,transparent:true,opacity:.85}));
+  scene.add(particlesMesh);
+  axesHelper=new THREE.AxesHelper(2.8); scene.add(axesHelper);
+  threeInit=true;
+  (function loop(){
+    requestAnimationFrame(loop);
+    const rot = (S.rpm/60)*0.033;
+    if (runnerGroup) runnerGroup.rotation.y += rot;
+    if (generatorGroup) generatorGroup.rotation.y += rot;
+    if (particlesMesh) particlesMesh.rotation.y += 0.004 + S.flow * 0.0001;
+    if (vanesGroup) vanesGroup.rotation.y -= 0.002;
+    controls.update();
+    renderer.render(scene,camera);
+  })();
+}
+function toggleLayer(which, on){
+  if (which==='casing' && casingMesh) casingMesh.visible=on;
+  if (which==='vanes' && vanesGroup) vanesGroup.visible=on;
+  if (which==='runner' && runnerGroup) runnerGroup.visible=on;
+  if (which==='particles' && particlesMesh) particlesMesh.visible=on;
+  if (which==='axes' && axesHelper) axesHelper.visible=on;
+  if (which==='autorotate' && controls) controls.autoRotate=on;
+}
+function setCamera(preset){
+  if (!camera || !controls) return;
+  if (preset==='iso') camera.position.set(4.5, 3.5, 6.5);
+  if (preset==='runner') camera.position.set(0, 1.2, 3.5);
+  if (preset==='top') camera.position.set(0, 7, 0.5);
+  if (preset==='cut') camera.position.set(3.2, 0.5, 3.2);
+  controls.update();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   LAB SCENARIOS
+   ═══════════════════════════════════════════════════════════ */
+function scenarioLog(msg){
+  const log=$('scenario-log'); if(!log) return;
+  log.classList.remove('hidden');
+  const body=$('scenario-log-body');
+  const t=new Date().toTimeString().slice(0,8);
+  body.insertAdjacentHTML('afterbegin', `<div><span class="text-brand-400">[${t}]</span> ${msg}</div>`);
+}
+function loadScenario(type){
+  if (type==='startup'){
+    if (S.state===ST.TRIPPED) toggleTrip();
+    scenarioLog('Inicio: apertura 15 %');
+    setOpening(15);
+    startPlant();
+    setTimeout(()=>{ scenarioLog('Rampa a 65 %'); setOpening(65); }, 2500);
+    setTimeout(()=>{ scenarioLog('Ajuste n* = 1300 rpm'); setSpeedRef(1300); }, 5000);
+    setTimeout(()=>{ scenarioLog('Sincronizando...'); attemptSync(); }, 8000);
+    setTimeout(()=>{ switchView('trends'); }, 9000);
+  } else if (type==='rejection'){
+    scenarioLog('Rechazo de carga...');
+    if (S.state===ST.GRID){
+      S.state=ST.ISLANDED; setStateBadge();
+      raiseAlarm('critical','REJ-301','Rechazo de carga — sobrevelocidad esperada');
+      setTimeout(()=>switchView('trends'), 2000);
+    } else if (S.state===ST.ISLANDED){
+      scenarioLog('Sistema ya en isla');
+    } else {
+      scenarioLog('Sistema no está en marcha');
+    }
+  } else if (type==='cavitation'){
+    scenarioLog('Descendiendo H a 1.2 m para inducir cavitación');
+    if (S.state===ST.STOPPED) startPlant();
+    setOpening(12);
+    setHead(1.2);
+    setTimeout(()=>{ scenarioLog('σ crítico alcanzado'); switchView('trends'); }, 3000);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   MAIN LOOP
+   ═══════════════════════════════════════════════════════════ */
+function loop(now){
+  requestAnimationFrame(loop);
+  if (!S.lastWall) S.lastWall=now;
+  const elapsed=(now-S.lastWall)/1000;
+  S.lastWall=now;
+  S.accum+=elapsed;
+  let steps=0;
+  while (S.accum >= CFG.dt && steps < 5){
+    stepPhysics(CFG.dt);
+    S.t += CFG.dt;
+    S.accum -= CFG.dt;
+    steps++;
+  }
+  updateUI();
+  updateCharts();
+  if (currentView === 'hill') drawHillChart();
+  updateUptime();
+}
+let lastUptimeUpdate=0;
+function updateUptime(){
+  const now=performance.now();
+  if (now-lastUptimeUpdate < 500) return;
+  lastUptimeUpdate=now;
+  const up=Math.floor((Date.now()-S.uptimeStart)/1000);
+  const hh=String(Math.floor(up/3600)).padStart(2,'0');
+  const mm=String(Math.floor((up%3600)/60)).padStart(2,'0');
+  const ss=String(up%60).padStart(2,'0');
+  setText('uptime-label', `${hh}:${mm}:${ss}`);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   RESIZE
+   ═══════════════════════════════════════════════════════════ */
+window.addEventListener('resize',()=>{
+  if(charts.miniRpm) charts.miniRpm.setSize({width:$('mini-rpm').clientWidth,height:128});
+  if(charts.miniPower) charts.miniPower.setSize({width:$('mini-power').clientWidth,height:128});
+  if(charts.mainRpm) charts.mainRpm.setSize({width:$('main-rpm').clientWidth,height:256});
+  if(charts.mainPower) charts.mainPower.setSize({width:$('main-power').clientWidth,height:256});
+  if(charts.mainFlow) charts.mainFlow.setSize({width:$('main-flow').clientWidth,height:192});
+  if(monitorRenderer && $('monitor-3d')){
+    const w=$('monitor-3d').clientWidth, h=$('monitor-3d').clientHeight;
+    monitorCamera.aspect=w/h; monitorCamera.updateProjectionMatrix();
+    monitorRenderer.setSize(w,h);
+  }
+  if(renderer && $('full-3d')){
+    const w=$('full-3d').clientWidth, h=$('full-3d').clientHeight;
+    camera.aspect=w/h; camera.updateProjectionMatrix();
+    renderer.setSize(w,h);
+  }
+});
+
+/* ═══════════════════════════════════════════════════════════
+   KEYBOARD SHORTCUTS
+   ═══════════════════════════════════════════════════════════ */
+window.addEventListener('keydown', e=>{
+  if(['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)) return;
+  const k=e.key.toLowerCase();
+  if(k===' '){ e.preventDefault(); toggleTrip(); }
+  else if(k==='s') startPlant();
+  else if(k==='p') stopPlant();
+  else if(k==='t') toggleTheme();
+  else if(k==='a') switchView('alarms');
+  else if(k==='m') switchView('overview');
+  else if(k==='3') switchView('3d');
+  else if(k==='2') switchView('pid');
+  else if(k==='h') switchView('hmi');
+  else if(k==='r') switchView('trends');
+});
+
+/* ═══════════════════════════════════════════════════════════
+   BOOTSTRAP
+   ═══════════════════════════════════════════════════════════ */
+window.addEventListener('load',()=>{
+  const saved=localStorage.getItem('francis-theme')||'dark';
+  if(saved==='dark'){
+    document.documentElement.classList.add('dark');
+    $('theme-icon').className='fa-solid fa-sun';
+  } else {
+    document.documentElement.classList.remove('dark');
+    $('theme-icon').className='fa-solid fa-moon';
+  }
+  const savedPid = localStorage.getItem('francis-pid');
+  if (savedPid) {
+    try {
+      const p = JSON.parse(savedPid);
+      S.Kp=p.Kp; S.Ti=p.Ti; S.Td=p.Td||0.2; S.droop=p.droop;
+      $('pid-kp').value=p.Kp; $('pid-ti').value=p.Ti; $('pid-td').value=S.Td; $('pid-droop').value=p.droop;
+    } catch(e){}
+  }
+  initMonitor3D();
+  initMiniCharts();
+  calculateSizing();
+  switchView('overview');
+  renderAlarms();
+  raiseAlarm('info','SYS-000','Sistema SCADA iniciado');
+  toast('SCADA v3.0 · pulse S para arrancar','info',4000);
+  requestAnimationFrame(loop);
+});
+</script>
+</body>
+</html>
