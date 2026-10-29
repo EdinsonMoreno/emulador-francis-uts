@@ -1,26 +1,21 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { useSceneStore } from '../../store/sceneStore';
-import { Layout as OldLayout } from '../OldLayout'; // NO USADO - solo referencia
+import { useEffect, useState } from 'react';
 import type { SceneIndex } from '../../types';
+import { ThreeDView } from '../../views/ThreeDView';
+import { Schematic2DView } from '../../views/Schematic2DView';
+import { ControlPanelView } from '../../views/ControlPanelView';
+import { TelemetryView } from '../../views/TelemetryView';
+import { DimensioningView } from '../../views/DimensioningView';
+import { PracticesView } from '../../views/PracticesView';
 
 export function Layout() {
-  const currentScene = useSceneStore((s) => s.currentScene);
-  const nextScene = useSceneStore((s) => s.nextScene);
-  const prevScene = useSceneStore((s) => s.prevScene);
-  const goToScene = useSceneStore((s) => s.goToScene);
-
-  // Navegación nueva por fichas del panel
   const [activeView, setActiveView] = useState<SceneIndex>(0);
+  const [simTime, setSimTime] = useState<number>(0);
+  const [connectionStatus] = useState<'connecting' | 'connected' | 'disconnected' | 'running'>('connecting');
 
+  // Navegación por fichas del panel
   const handleTabClick = (id: SceneIndex) => {
     setActiveView(id);
-    // Opcional: navegar la escena también
-    // goToScene(id);
   };
-
-  // Estado del sistema
-  const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected' | 'running'>('connecting');
-  const [simTime, setSimTime] = useState<number>(0);
 
   // Simular estado del sistema (el estado real vendrá del backend)
   useEffect(() => {

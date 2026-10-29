@@ -1,5 +1,5 @@
 // Indicador numérico en vivo (las variables cambian su valor con el tiempo)
-import { useEffect, useState } from 'react';
+import {} from 'react';
 
 export interface LiveValueProps {
   value: number;
@@ -7,8 +7,6 @@ export interface LiveValueProps {
   precision?: number;
   className?: string;
   color?: 'primary' | 'success' | 'warning' | 'danger' | 'blue';
-  min?: number;
-  max?: number;
 }
 
 export function LiveValue({
@@ -17,8 +15,6 @@ export function LiveValue({
   precision = 2,
   className,
   color = 'primary',
-  min,
-  max,
 }: LiveValueProps) {
   const colors = {
     primary: 'text-text-primary',

@@ -1,6 +1,4 @@
 import { Slider } from '../components/ui/Slider';
-import { Gauge } from '../components/ui/Gauge';
-import { StatusLight } from '../components/ui/StatusLight';
 
 export function DimensioningView() {
   const params = {
@@ -9,17 +7,15 @@ export function DimensioningView() {
     n: 30,
     D: 0.5,
     r1: 0.12,
-    eta: 0.92,
-    P: 5.4e6,
     rho: 1000,
     g: 9.81,
+    eta: 0.92,
+    P: 5.4e6,
   };
 
-  const A1 = Math.PI * params.r1**2;
-  const U = params.n * params.r1;
-  const phi = (params.g * params.H) / (params.n**2 * params.r1**2);
-  const psi = params.Q / (params.n * params.r1**3);
-  const rho_value = params.P / (params.rho * params.g * params.n**3 * params.r1**5);
+  const phi = (params.g * params.H) / (params.n ** 2 * params.r1 ** 2);
+  const psi = params.Q / (params.n * params.r1 ** 3);
+  const rho_value = params.P / (params.rho * params.g * params.n ** 3 * params.r1 ** 5);
 
   return (
     <div className="view">
@@ -37,7 +33,7 @@ export function DimensioningView() {
                 min={0.1}
                 max={500}
                 unit="m"
-                onChange={(v) => {}}
+                onChange={() => {}}
               />
               <Slider
                 label="Caudal Q"
@@ -116,7 +112,7 @@ export function DimensioningView() {
               </div>
               <div className="flex justify-between">
                 <span className="text-text-secondary">Velocidad síncrona nₛ</span>
-                <span className="font-mono text-primary">{params.n} rad/s &nbsp;({(params.n * 60)/(2*Math.PI).toFixed(0)} rpm)</span>
+                <span className="font-mono text-primary">{params.n} rad/s &nbsp;({Math.round((params.n * 60) / (2 * Math.PI))} rpm)</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-text-secondary">Coef. φ (cabeceo)</span>
@@ -146,7 +142,7 @@ export function DimensioningView() {
                 El punto de diseño se seleccionó en el máximo de la curva de
                 colina (η = {params.eta * 100} %). El número específico de
                velocidad <span className="font-mono text-text-primary">n₁₁</span>
-                {(params.n * 60) / (2 * Math.PI).toFixed(0)} rpm está dentro del
+                {((params.n * 60) / (2 * Math.PI)).toFixed(0)} rpm está dentro del
                 rango de operación de una turbina Francis de tamaño de
                 laboratorio.
               </p>

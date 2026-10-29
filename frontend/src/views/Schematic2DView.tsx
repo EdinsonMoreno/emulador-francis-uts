@@ -1,11 +1,7 @@
 import { useSceneStore } from '../store/sceneStore';
-import { Slider } from '../components/ui/Slider';
 import { Gauge } from '../components/ui/Gauge';
-import { StatusLight } from '../components/ui/StatusLight';
-import { LiveValue } from '../components/ui/LiveValue';
 
 export function Schematic2DView() {
-  const physics = useSceneStore((s) => s.physics);
   const derived = useSceneStore((s) => s.derived);
 
   return (

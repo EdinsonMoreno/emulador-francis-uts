@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react';
-import { Canvas, Suspense, useFrame } from '@react-three/fiber';
+import { Suspense, useRef, useState } from 'react';
+import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, ContactShadows } from '@react-three/drei';
 import { useGLTF } from '@react-three/drei';
 import { isWebGLAvailable } from '../canvas/webgl';

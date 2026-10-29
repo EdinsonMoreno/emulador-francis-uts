@@ -58,11 +58,11 @@ export function ControlPanelView() {
             <div className="card-body space-y-3">
               <Slider
                 label="Consigna de velocidad"
-                value={(useSceneStore.getState().physics.omega * 60) / (2 * Math.PI) * 1000}
+                value={(derived.omega * 60) / (2 * Math.PI) * 1000}
                 min={800}
                 max={1600}
                 unit="rpm"
-                onChange={(v) => {
+                onChange={() => {
                   // La consigna se aplica en el motor
                 }}
               />

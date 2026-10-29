@@ -1,6 +1,4 @@
-import { useEffect, useState } from 'react';
-import { StatusLight } from '../components/ui/StatusLight';
-import { Slider } from '../components/ui/Slider';
+import { useState } from 'react';
 import { Button } from '../components/ui/Button';
 
 export function PracticesView() {

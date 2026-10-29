@@ -24,11 +24,6 @@ export function Gauge({
   children,
   size = 'md',
 }: GaugeProps) {
-  const sizeStyles = {
-    sm: 'text-sm',
-    md: 'text-base',
-    lg: 'text-lg',
-  };
   const colors = {
     ok: 'text-success',
     warn: 'text-warning',

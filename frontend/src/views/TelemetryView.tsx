@@ -1,7 +1,6 @@
 import { useSceneStore } from '../store/sceneStore';
 import { Slider } from '../components/ui/Slider';
 import { Gauge } from '../components/ui/Gauge';
-import { StatusLight } from '../components/ui/StatusLight';
 
 export function TelemetryView() {
   const physics = useSceneStore((s) => s.physics);
