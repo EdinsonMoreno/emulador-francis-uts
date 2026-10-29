@@ -1,0 +1,263 @@
+/* ============================================================
+   COMPONENTS — Francis UTS SCADA
+   ============================================================ */
+
+/* ── Glass panel ── */
+.glass {
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  background: rgba(15, 23, 42, .78);
+  border: 1px solid rgba(255, 255, 255, .08);
+}
+
+/* ── Navigation items ── */
+.nav-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.625rem 0.75rem;
+  border-radius: var(--radius-lg);
+  font-size: 13px;
+  font-weight: 500;
+  color: #94a3b8;
+  border-left: 2px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+  text-align: left;
+}
+.nav-item:hover {
+  background: rgba(30, 41, 59, .6);
+  color: #e2e8f0;
+}
+.nav-item.active {
+  background: linear-gradient(90deg, rgba(14,165,233,.25), rgba(14,165,233,.03));
+  border-left-color: #38bdf8;
+  color: #fff;
+}
+
+/* ── KPI cards ── */
+.kpi-card {
+  position: relative;
+  overflow: hidden;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-xl);
+  padding: 1rem;
+  box-shadow: var(--shadow-sm);
+  transition: transform .15s, border-color .15s;
+}
+.kpi-card:hover { transform: translateY(-1px); }
+.kpi-accent {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 80px;
+  height: 80px;
+  border-bottom-left-radius: 100%;
+  opacity: .35;
+  pointer-events: none;
+}
+.kpi-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+.kpi-value {
+  font-size: 1.25rem;
+  font-weight: 900;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.kpi-unit {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-family: var(--font-sans);
+  font-weight: 400;
+}
+
+/* ── Status dot ── */
+.status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.status-dot.ok { background: #22c55e; }
+.status-dot.warn { background: #f59e0b; }
+.status-dot.crit { background: #ef4444; }
+.status-dot.off { background: #475569; }
+.pulse-dot { animation: pulse-dot 1.8s infinite; }
+
+/* ── Parameter chip ── */
+.p-chip {
+  font-size: 9px;
+  font-weight: 800;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+/* ── Toggle switch ── */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 36px;
+  height: 20px;
+}
+.switch input { opacity: 0; width: 0; height: 0; }
+.switch .slider-track {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background: #475569;
+  border-radius: 20px;
+  transition: .2s;
+}
+.switch .slider-track::before {
+  position: absolute;
+  content: "";
+  height: 14px;
+  width: 14px;
+  left: 3px;
+  bottom: 3px;
+  background: #fff;
+  border-radius: 50%;
+  transition: .2s;
+}
+.switch input:checked + .slider-track { background: #0284c7; }
+.switch input:checked + .slider-track::before { transform: translateX(16px); }
+
+/* ── Mode toggle ── */
+.mode-toggle {
+  display: flex;
+  background: var(--bg-input);
+  border-radius: var(--radius-md);
+  padding: 2px;
+}
+.mode-toggle button {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 10px;
+  border-radius: var(--radius-sm);
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background .12s, color .12s;
+}
+.mode-toggle button.active {
+  background: #0284c7;
+  color: #fff;
+}
+
+/* ── Range input (sliders) ── */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  outline: none;
+  background: var(--bg-input);
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #0284c7;
+  border: 2px solid #fff;
+  box-shadow: 0 0 10px rgba(14,165,233,.5);
+  cursor: pointer;
+  transition: transform .12s;
+}
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.18);
+  background: #38bdf8;
+}
+input[type="range"]::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #0284c7;
+  border: 2px solid #fff;
+  cursor: pointer;
+}
+
+/* ── Flow line animation ── */
+.flow-line {
+  stroke-dasharray: 8 6;
+  animation: dash 1.6s linear infinite;
+}
+.flow-line.paused { animation: none; stroke-dasharray: 8 6; opacity: .3; }
+
+/* ── Alarm banner ── */
+.alarm-banner { animation: banner-pulse 1.4s infinite; }
+
+/* ── Toast ── */
+.toast { animation: toast-in .25s ease-out; }
+
+/* ── View panels ── */
+.view-panel { display: none; }
+.view-panel.active { display: block; }
+
+/* ── uPlot overrides ── */
+.uplot .u-axis { font-size: 10px; font-family: var(--font-mono); }
+.uplot .u-legend { font-size: 11px; font-family: var(--font-sans); }
+
+/* ── Buttons ── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  font-weight: 700;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background .12s, transform .1s;
+}
+.btn:active { transform: scale(.97); }
+.btn-primary { background: #0284c7; color: #fff; }
+.btn-primary:hover { background: #0369a1; }
+.btn-success { background: #16a34a; color: #fff; }
+.btn-success:hover { background: #15803d; }
+.btn-danger { background: #dc2626; color: #fff; }
+.btn-danger:hover { background: #b91c1c; }
+.btn-ghost {
+  background: var(--bg-input);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+}
+.btn-ghost:hover { background: var(--border-default); }
+
+/* ── Input number ── */
+.input-num {
+  width: 100%;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 0.875rem;
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 0.25rem 0;
+  color: var(--text-primary);
+  outline: none;
+}
+.input-num:focus { border-color: var(--brand-500); }
+
+/* ── Skeleton / loading ── */
+@keyframes shimmer {
+  0% { background-position: -200px 0; }
+  100% { background-position: 200px 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, var(--bg-elevated) 25%, var(--border-default) 50%, var(--bg-elevated) 75%);
+  background-size: 400px 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: var(--radius-md);
+}
